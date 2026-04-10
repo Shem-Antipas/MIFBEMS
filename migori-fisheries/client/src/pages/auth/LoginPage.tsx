@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import axios from "axios";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 import { Input } from "@/components/ui/input";
@@ -60,7 +61,11 @@ const LoginPage = () => {
       }
       toast.success("Welcome to MiFBEMS");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Login failed";
+      const message = axios.isAxiosError<{ error?: string }>(error)
+        ? (error.response?.data?.error ?? "Login failed")
+        : error instanceof Error
+          ? error.message
+          : "Login failed";
       toast.error(message);
     }
   };

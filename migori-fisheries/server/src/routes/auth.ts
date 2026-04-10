@@ -1,4 +1,5 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { env } from "../lib/env.js";
 import { asyncHandler, HttpError } from "../lib/http.js";
@@ -13,6 +14,15 @@ const loginSchema = z.object({
   password: z.string().min(8)
 });
 
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: env.NODE_ENV === "development" ? 1000 : 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: "Too many login attempts. Please try again later." }
+});
+
 const cookieOptions = {
   httpOnly: true,
   secure: env.NODE_ENV === "production",
@@ -23,6 +33,7 @@ const cookieOptions = {
 
 router.post(
   "/login",
+  loginLimiter,
   validate({ body: loginSchema }),
   asyncHandler(async (req, res) => {
     const { email, password } = req.body as z.infer<typeof loginSchema>;

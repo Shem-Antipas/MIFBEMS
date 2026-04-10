@@ -6,6 +6,9 @@ export interface User {
   email: string;
   role: Role;
   subCounty: string | null;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AuthResponse {
@@ -17,6 +20,7 @@ export interface Farmer {
   id: string;
   name: string;
   subCounty: string;
+  ward: string;
   farmType: "POND" | "CAGE" | "TANK" | "DAM";
   species: string[];
   licenseNo?: string | null;

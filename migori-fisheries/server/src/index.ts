@@ -3,6 +3,7 @@ import express, { type ErrorRequestHandler, type NextFunction, type Request, typ
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
+import { Prisma } from "@prisma/client";
 import { env } from "./lib/env.js";
 import { logger } from "./lib/logger.js";
 import { HttpError } from "./lib/http.js";
@@ -53,14 +54,6 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many login attempts. Please try again later." }
-});
-
 const writeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 120,
@@ -74,7 +67,7 @@ app.get("/health", (_req: Request, res: Response) => {
   res.status(200).json({ status: "ok", service: "MiFBEMS API" });
 });
 
-app.use("/api/v1/auth", authLimiter, authRoutes);
+app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1", writeLimiter);
 app.use("/api/v1/farmers", farmerRoutes);
 app.use("/api/v1/licenses", licenseRoutes);
@@ -98,13 +91,29 @@ const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     method: req.method
   });
 
-  const statusCode =
-    error instanceof HttpError
+  const isPrismaConnectivityError =
+    error instanceof Prisma.PrismaClientInitializationError ||
+    (error instanceof Prisma.PrismaClientKnownRequestError &&
+      ["P1000", "P1001", "P1002", "P1008", "P1017"].includes(error.code));
+
+  const statusCode = isPrismaConnectivityError
+    ? 503
+    : error instanceof HttpError
       ? error.statusCode
       : (res.statusCode >= 400 && res.statusCode < 600)
         ? res.statusCode
         : 500;
-  const message = statusCode === 500 ? "Internal server error" : error.message;
+
+  const databaseMessage =
+    env.NODE_ENV === "development"
+      ? "Database connection failed. Verify DATABASE_URL, network access, and SSL settings."
+      : "Service temporarily unavailable.";
+
+  const message = isPrismaConnectivityError
+    ? databaseMessage
+    : statusCode === 500
+      ? "Internal server error"
+      : error.message;
 
   res.status(statusCode).json({ error: message });
 };

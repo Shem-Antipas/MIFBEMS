@@ -66,6 +66,7 @@ async function main() {
                 id: farmerUser.id,
                 name: "Peter Achieng Farm",
                 subCounty: subCounties[0],
+                ward: "Kachieng",
                 farmType: FarmType.POND,
                 species: ["Tilapia", "Catfish"],
                 status: FarmerStatus.ACTIVE,
@@ -79,6 +80,7 @@ async function main() {
             data: {
                 name: "Suna Aqua Holdings",
                 subCounty: subCounties[1],
+                ward: "God Jope",
                 farmType: FarmType.CAGE,
                 species: ["Tilapia"],
                 status: FarmerStatus.ACTIVE,
@@ -92,6 +94,7 @@ async function main() {
             data: {
                 name: "West Lake Fisheries",
                 subCounty: subCounties[2],
+                ward: "Wiga",
                 farmType: FarmType.TANK,
                 species: ["Catfish"],
                 status: FarmerStatus.ACTIVE,
@@ -105,6 +108,7 @@ async function main() {
             data: {
                 name: "Uriri Blue Waters",
                 subCounty: subCounties[3],
+                ward: "West Kanyamkago",
                 farmType: FarmType.DAM,
                 species: ["Tilapia", "Nile Perch"],
                 status: FarmerStatus.SUSPENDED,
@@ -118,6 +122,7 @@ async function main() {
             data: {
                 name: "Kuria East Fish Collective",
                 subCounty: subCounties[4],
+                ward: "Gokeharaka/Getambwega",
                 farmType: FarmType.POND,
                 species: ["Tilapia"],
                 status: FarmerStatus.ACTIVE,
@@ -131,6 +136,7 @@ async function main() {
             data: {
                 name: "Kuria West Aquahub",
                 subCounty: subCounties[5],
+                ward: "Bukira East",
                 farmType: FarmType.CAGE,
                 species: ["Catfish", "Tilapia"],
                 status: FarmerStatus.INACTIVE,

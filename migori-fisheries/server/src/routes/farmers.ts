@@ -1,7 +1,8 @@
-import { FarmType, FarmerStatus, Role } from "@prisma/client";
+import { FarmType, FarmerStatus, LicenseStatus, LicenseType, Role } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler, HttpError } from "../lib/http.js";
+import { MIGORI_SUBCOUNTIES, isValidWardForSubCounty } from "../lib/locationData.js";
 import { prisma } from "../lib/prisma.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
@@ -13,17 +14,56 @@ const router = Router();
 
 const createFarmerSchema = z.object({
   name: z.string().min(2),
-  subCounty: z.string().min(2),
+  subCounty: z.enum(MIGORI_SUBCOUNTIES),
+  ward: z.string().min(2),
   farmType: z.enum(FarmType),
   species: z.array(z.string().min(2)).min(1),
   licenseNo: z.string().optional(),
   status: z.enum(FarmerStatus).optional(),
   productionKg: z.number().min(0).optional(),
   latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional()
+  longitude: z.number().min(-180).max(180).optional(),
+  initialLicense: z
+    .object({
+      licenseNo: z.string().min(4),
+      type: z.enum(LicenseType),
+      issuedDate: z.coerce.date(),
+      expiryDate: z.coerce.date(),
+      status: z.enum(LicenseStatus).optional()
+    })
+    .optional()
+}).superRefine((value, ctx) => {
+  if (!isValidWardForSubCounty(value.subCounty, value.ward)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["ward"],
+      message: "Selected ward does not belong to the selected sub-county"
+    });
+  }
+
+  if (value.initialLicense && value.initialLicense.expiryDate <= value.initialLicense.issuedDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["initialLicense", "expiryDate"],
+      message: "Expiry date must be later than issued date"
+    });
+  }
 });
 
-const updateFarmerSchema = createFarmerSchema.partial();
+const updateFarmerSchema = z
+  .object({
+    name: z.string().min(2).optional(),
+    subCounty: z.enum(MIGORI_SUBCOUNTIES).optional(),
+    ward: z.string().min(2).optional(),
+    farmType: z.enum(FarmType).optional(),
+    species: z.array(z.string().min(2)).min(1).optional(),
+    licenseNo: z.string().optional(),
+    status: z.enum(FarmerStatus).optional(),
+    productionKg: z.number().min(0).optional(),
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional()
+  })
+  .strict();
 
 const idParamSchema = z.object({ id: z.string().min(5) });
 
@@ -87,14 +127,37 @@ router.post(
     }
 
     const payload = req.body as z.infer<typeof createFarmerSchema>;
+    const { initialLicense, ...farmerPayload } = payload;
 
-    const farmer = await prisma.farmer.create({
-      data: {
-        ...payload,
-        registeredById: req.user.id,
-        productionKg: payload.productionKg ?? 0
+    const farmer = await prisma.$transaction(async (tx) => {
+      const created = await tx.farmer.create({
+        data: {
+          ...farmerPayload,
+          licenseNo: initialLicense?.licenseNo ?? farmerPayload.licenseNo,
+          registeredById: req.user.id,
+          productionKg: farmerPayload.productionKg ?? 0
+        }
+      });
+
+      if (initialLicense) {
+        await tx.license.create({
+          data: {
+            ...initialLicense,
+            status: initialLicense.status ?? LicenseStatus.VALID,
+            farmerId: created.id
+          }
+        });
       }
+
+      return tx.farmer.findUnique({
+        where: { id: created.id },
+        include: { licenses: true }
+      });
     });
+
+    if (!farmer) {
+      throw new HttpError(500, "Failed to create farmer");
+    }
 
     res.status(201).json({ data: farmer });
   })
@@ -120,6 +183,12 @@ router.put(
     }
 
     const payload = req.body as z.infer<typeof updateFarmerSchema>;
+    const targetSubCounty = payload.subCounty ?? existingFarmer.subCounty;
+    const targetWard = payload.ward ?? existingFarmer.ward;
+
+    if (!isValidWardForSubCounty(targetSubCounty, targetWard)) {
+      throw new HttpError(400, "Selected ward does not belong to the selected sub-county");
+    }
 
     const farmer = await prisma.farmer.update({
       where: { id },

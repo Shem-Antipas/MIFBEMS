@@ -7,6 +7,7 @@ interface AuthState {
   accessToken: string | null;
   isAuthenticated: boolean;
   isBootstrapping: boolean;
+  hasCheckedSession: boolean;
   login: (credentials: LoginPayload) => Promise<void>;
   logout: () => Promise<void>;
   bootstrap: () => Promise<void>;
@@ -19,23 +20,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken: null,
   isAuthenticated: false,
   isBootstrapping: false,
+  hasCheckedSession: false,
   login: async (credentials) => {
     const response = await authApi.login(credentials);
     set({
       user: response.user,
       accessToken: response.accessToken,
-      isAuthenticated: true
+      isAuthenticated: true,
+      hasCheckedSession: true
     });
   },
   logout: async () => {
     try {
       await authApi.logout();
     } finally {
-      set({ user: null, accessToken: null, isAuthenticated: false });
+      set({ user: null, accessToken: null, isAuthenticated: false, hasCheckedSession: true });
     }
   },
   bootstrap: async () => {
-    if (get().isBootstrapping) {
+    if (get().isBootstrapping || get().hasCheckedSession) {
       return;
     }
 
@@ -46,10 +49,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         user: response.user,
         accessToken: response.accessToken,
-        isAuthenticated: true
+        isAuthenticated: true,
+        hasCheckedSession: true
       });
-    } catch (_error) {
-      set({ user: null, accessToken: null, isAuthenticated: false });
+    } catch {
+      set({ user: null, accessToken: null, isAuthenticated: false, hasCheckedSession: true });
     } finally {
       set({ isBootstrapping: false });
     }

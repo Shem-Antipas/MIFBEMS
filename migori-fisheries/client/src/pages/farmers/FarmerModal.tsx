@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,15 +6,69 @@ import { MapContainer, TileLayer, useMapEvents } from "react-leaflet";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { CreateFarmerPayload } from "@/api/farmers";
+import { MIGORI_SUBCOUNTIES, WARDS_BY_SUBCOUNTY } from "@/lib/locationData";
 
 const farmerSchema = z.object({
   name: z.string().min(2),
-  subCounty: z.string().min(2),
+  subCounty: z.enum(MIGORI_SUBCOUNTIES),
+  ward: z.string().min(2, "Ward is required"),
   farmType: z.enum(["POND", "CAGE", "TANK", "DAM"]),
   species: z.string().min(2),
   productionKg: z.number().min(0),
   latitude: z.number().optional(),
-  longitude: z.number().optional()
+  longitude: z.number().optional(),
+  issueLicense: z.boolean(),
+  licenseNo: z.string().optional(),
+  licenseType: z.enum(["AQUACULTURE", "COMMERCIAL_FISHING", "ARTISANAL_FISHING"]).optional(),
+  licenseIssuedDate: z.string().optional(),
+  licenseExpiryDate: z.string().optional()
+}).superRefine((value, ctx) => {
+  const wards = WARDS_BY_SUBCOUNTY[value.subCounty];
+  if (!wards.includes(value.ward)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["ward"],
+      message: "Selected ward does not belong to the selected sub-county"
+    });
+  }
+
+  if (value.issueLicense) {
+    if (!value.licenseNo?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["licenseNo"], message: "License number is required" });
+    }
+
+    if (!value.licenseType) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["licenseType"], message: "License type is required" });
+    }
+
+    if (!value.licenseIssuedDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["licenseIssuedDate"],
+        message: "Issued date is required"
+      });
+    }
+
+    if (!value.licenseExpiryDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["licenseExpiryDate"],
+        message: "Expiry date is required"
+      });
+    }
+
+    if (value.licenseIssuedDate && value.licenseExpiryDate) {
+      const issuedDate = new Date(value.licenseIssuedDate);
+      const expiryDate = new Date(value.licenseExpiryDate);
+      if (expiryDate <= issuedDate) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["licenseExpiryDate"],
+          message: "Expiry date must be later than issued date"
+        });
+      }
+    }
+  }
 });
 
 type FarmerFormValues = z.infer<typeof farmerSchema>;
@@ -43,18 +97,33 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting }: FarmerModalProps
   const {
     register,
     handleSubmit,
+    getValues,
+    watch,
     setValue,
     formState: { errors }
   } = useForm<FarmerFormValues>({
     resolver: zodResolver(farmerSchema),
     defaultValues: {
       name: "",
-      subCounty: "",
+      subCounty: "Suna East",
+      ward: "God Jope",
       farmType: "POND",
       species: "Tilapia",
-      productionKg: 0
+      productionKg: 0,
+      issueLicense: false
     }
   });
+
+  const selectedSubCounty = watch("subCounty");
+  const issueLicense = watch("issueLicense");
+  const availableWards = WARDS_BY_SUBCOUNTY[selectedSubCounty];
+
+  useEffect(() => {
+    const currentWard = getValues("ward");
+    if (!availableWards.includes(currentWard)) {
+      setValue("ward", availableWards[0], { shouldValidate: true });
+    }
+  }, [availableWards, getValues, setValue]);
 
   if (!open) {
     return null;
@@ -70,11 +139,15 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting }: FarmerModalProps
         address?: { county?: string; state_district?: string; municipality?: string };
       };
 
-      const countyGuess = data.address?.state_district ?? data.address?.county ?? data.address?.municipality;
-      if (countyGuess) {
-        setValue("subCounty", countyGuess.replace("Sub-County", "").trim());
+      const countyGuess = data.address?.state_district ?? data.address?.county ?? data.address?.municipality ?? "";
+      const normalizedGuess = countyGuess.toLowerCase();
+      const matchedSubCounty = MIGORI_SUBCOUNTIES.find((item) => normalizedGuess.includes(item.toLowerCase()));
+
+      if (matchedSubCounty) {
+        setValue("subCounty", matchedSubCounty, { shouldValidate: true });
+        setValue("ward", WARDS_BY_SUBCOUNTY[matchedSubCounty][0], { shouldValidate: true });
       }
-    } catch (_error) {
+    } catch {
       // Best-effort geocoding
     } finally {
       setGeoLoading(false);
@@ -85,12 +158,22 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting }: FarmerModalProps
     await onSubmit({
       name: values.name,
       subCounty: values.subCounty,
+      ward: values.ward,
       farmType: values.farmType,
       species: values.species.split(",").map((item) => item.trim()).filter(Boolean),
       productionKg: values.productionKg,
       status: "ACTIVE",
       latitude: location?.lat,
-      longitude: location?.lng
+      longitude: location?.lng,
+      initialLicense: values.issueLicense
+        ? {
+            licenseNo: values.licenseNo!.trim(),
+            type: values.licenseType!,
+            issuedDate: values.licenseIssuedDate!,
+            expiryDate: values.licenseExpiryDate!,
+            status: "VALID"
+          }
+        : undefined
     });
   };
 
@@ -111,7 +194,25 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting }: FarmerModalProps
 
           <div>
             <label className="mb-1 block text-sm font-medium">Sub-County</label>
-            <Input {...register("subCounty")} />
+            <select className="w-full rounded-lg border px-3 py-2 text-sm" {...register("subCounty")}>
+              {MIGORI_SUBCOUNTIES.map((subCounty) => (
+                <option key={subCounty} value={subCounty}>
+                  {subCounty}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">Ward</label>
+            <select className="w-full rounded-lg border px-3 py-2 text-sm" {...register("ward")}>
+              {availableWards.map((ward) => (
+                <option key={ward} value={ward}>
+                  {ward}
+                </option>
+              ))}
+            </select>
+            {errors.ward ? <p className="text-xs text-red-600">{errors.ward.message}</p> : null}
           </div>
 
           <div>
@@ -132,6 +233,50 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting }: FarmerModalProps
           <div>
             <label className="mb-1 block text-sm font-medium">Production (Kg)</label>
             <Input type="number" step="0.1" {...register("productionKg", { valueAsNumber: true })} />
+          </div>
+
+          <div className="md:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-emerald-900">
+              <input type="checkbox" className="h-4 w-4" {...register("issueLicense")} />
+              Issue initial license now
+            </label>
+
+            {issueLicense ? (
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium">License Number</label>
+                  <Input {...register("licenseNo")} placeholder="MIG-LIC-XXXX" />
+                  {errors.licenseNo ? <p className="text-xs text-red-600">{errors.licenseNo.message}</p> : null}
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium">License Type</label>
+                  <select className="w-full rounded-lg border px-3 py-2 text-sm" {...register("licenseType")}>
+                    <option value="">Select type</option>
+                    <option value="AQUACULTURE">Aquaculture</option>
+                    <option value="COMMERCIAL_FISHING">Commercial Fishing</option>
+                    <option value="ARTISANAL_FISHING">Artisanal Fishing</option>
+                  </select>
+                  {errors.licenseType ? <p className="text-xs text-red-600">{errors.licenseType.message}</p> : null}
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Issued Date</label>
+                  <Input type="date" {...register("licenseIssuedDate")} />
+                  {errors.licenseIssuedDate ? (
+                    <p className="text-xs text-red-600">{errors.licenseIssuedDate.message}</p>
+                  ) : null}
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium">Expiry Date</label>
+                  <Input type="date" {...register("licenseExpiryDate")} />
+                  {errors.licenseExpiryDate ? (
+                    <p className="text-xs text-red-600">{errors.licenseExpiryDate.message}</p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="md:col-span-2">

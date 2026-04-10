@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useFarmers } from "@/hooks/useFarmers";
 import { useLicenses } from "@/hooks/useLicenses";
 import { reportsApi } from "@/api/reports";
+import { projectsApi } from "@/api/projects";
 import { useAuthStore } from "@/store/authStore";
 import StatCard from "@/components/shared/StatCard";
 import DataTable from "@/components/shared/DataTable";
@@ -16,6 +17,10 @@ const DashboardPage = () => {
   });
   const { data: farmers = [] } = useFarmers();
   const { data: licenses = [] } = useLicenses();
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects"],
+    queryFn: projectsApi.list
+  });
 
   const farmersBySubCounty = useMemo(() => {
     return farmers.reduce<Record<string, number>>((acc, farmer) => {
@@ -41,6 +46,10 @@ const DashboardPage = () => {
   }, [licenses]);
 
   const myFarm = farmers.find((item) => item.id === user?.id);
+  const fallbackTotalFarmers = farmers.length;
+  const fallbackActiveLicenses = licenses.filter((item) => item.status === "VALID").length;
+  const fallbackTotalProductionKg = farmers.reduce((total, item) => total + item.productionKg, 0);
+  const fallbackOngoingProjects = projects.filter((item) => item.status === "ONGOING").length;
 
   return (
     <section className="space-y-6">
@@ -50,10 +59,13 @@ const DashboardPage = () => {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Farmers" value={summaryData?.summary.totalFarmers ?? 0} />
-        <StatCard label="Active Licenses" value={summaryData?.summary.activeLicenses ?? 0} />
-        <StatCard label="Total Production (Kg)" value={(summaryData?.summary.totalProductionKg ?? 0).toLocaleString()} />
-        <StatCard label="Ongoing Projects" value={summaryData?.summary.ongoingProjects ?? 0} />
+        <StatCard label="Total Farmers" value={summaryData?.summary.totalFarmers ?? fallbackTotalFarmers} />
+        <StatCard label="Active Licenses" value={summaryData?.summary.activeLicenses ?? fallbackActiveLicenses} />
+        <StatCard
+          label="Total Production (Kg)"
+          value={(summaryData?.summary.totalProductionKg ?? fallbackTotalProductionKg).toLocaleString()}
+        />
+        <StatCard label="Ongoing Projects" value={summaryData?.summary.ongoingProjects ?? fallbackOngoingProjects} />
       </div>
 
       <div className="rounded-xl border bg-white p-[18px]">

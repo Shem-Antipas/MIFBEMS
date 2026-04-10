@@ -14,6 +14,7 @@ const MyFarmPage = () => {
         <div className="rounded-xl border bg-white p-4 text-sm">
           <p><strong>Name:</strong> {farm.name}</p>
           <p><strong>Sub-County:</strong> {farm.subCounty}</p>
+          <p><strong>Ward:</strong> {farm.ward}</p>
           <p><strong>Farm Type:</strong> {farm.farmType}</p>
           <p><strong>Production:</strong> {farm.productionKg.toLocaleString()} kg</p>
         </div>

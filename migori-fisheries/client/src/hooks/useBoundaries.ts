@@ -121,7 +121,7 @@ const fetchGeoJson = async (path: string, fallback: BoundaryCollection): Promise
     }
 
     return data;
-  } catch (_error) {
+  } catch {
     return fallback;
   }
 };
