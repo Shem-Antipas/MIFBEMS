@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  email        String       @unique
+  passwordHash String
+  role         Role
+  subCounty    String?
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  farmers      Farmer[]
+  inspections  Inspection[]
+  auditLogs    AuditLog[]
+  queries      Query[]
+
+  @@index([role])
+  @@index([subCounty])
+}
+
+enum Role {
+  DIRECTOR
+  FISHERIES_OFFICER
+  DATA_ANALYST
+  FARMER
+  ADMIN
+}
+
+model Farmer {
+  id                String             @id @default(cuid())
+  name              String
+  subCounty         String
+  farmType          FarmType
+  species           String[]
+  licenseNo         String?
+  status            FarmerStatus       @default(ACTIVE)
+  productionKg      Float              @default(0)
+  latitude          Float?
+  longitude         Float?
+  registeredById    String
+  registeredBy      User               @relation(fields: [registeredById], references: [id])
+  licenses          License[]
+  productionRecords ProductionRecord[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([subCounty])
+  @@index([status])
+}
+
+enum FarmType {
+  POND
+  CAGE
+  TANK
+  DAM
+}
+
+enum FarmerStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model License {
+  id         String        @id @default(cuid())
+  licenseNo  String        @unique
+  farmerId   String
+  farmer     Farmer        @relation(fields: [farmerId], references: [id])
+  type       LicenseType
+  issuedDate DateTime
+  expiryDate DateTime
+  status     LicenseStatus @default(VALID)
+  createdAt  DateTime      @default(now())
+
+  @@index([farmerId])
+  @@index([status])
+}
+
+enum LicenseType {
+  AQUACULTURE
+  COMMERCIAL_FISHING
+  ARTISANAL_FISHING
+}
+
+enum LicenseStatus {
+  VALID
+  EXPIRED
+  REVOKED
+}
+
+model ProductionRecord {
+  id        String   @id @default(cuid())
+  farmerId  String
+  farmer    Farmer   @relation(fields: [farmerId], references: [id])
+  species   String
+  volumeKg  Float
+  season    String
+  year      Int
+  month     Int
+  createdAt DateTime @default(now())
+
+  @@index([farmerId])
+  @@index([year, month])
+}
+
+model Inspection {
+  id        String           @id @default(cuid())
+  farmName  String
+  subCounty String
+  officerId String
+  officer   User             @relation(fields: [officerId], references: [id])
+  date      DateTime
+  result    InspectionResult
+  notes     String?
+  createdAt DateTime         @default(now())
+
+  @@index([subCounty])
+  @@index([officerId])
+}
+
+enum InspectionResult {
+  PASS
+  FAIL
+  PENDING
+}
+
+model BlueEconomyProject {
+  id        String        @id @default(cuid())
+  name      String
+  subCounty String
+  budget    Float
+  funder    String
+  status    ProjectStatus @default(PLANNED)
+  startDate DateTime
+  endDate   DateTime?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([subCounty])
+  @@index([status])
+}
+
+enum ProjectStatus {
+  PLANNED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+model Advisory {
+  id        String       @id @default(cuid())
+  title     String
+  message   String
+  type      AdvisoryType
+  fromName  String
+  subCounty String?
+  createdAt DateTime     @default(now())
+
+  @@index([subCounty])
+}
+
+enum AdvisoryType {
+  INFO
+  WARNING
+  ACTION
+}
+
+model Query {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  subject   String
+  message   String
+  status    QueryStatus @default(PENDING)
+  reply     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum QueryStatus {
+  PENDING
+  RESOLVED
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  resource  String
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([resource])
+}

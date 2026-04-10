@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 42 47% 98%;
+  --foreground: 198 58% 15%;
+  --card: 0 0% 100%;
+  --card-foreground: 198 58% 15%;
+  --border: 190 17% 86%;
+  --primary: 176 87% 27%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 206 26% 91%;
+  --secondary-foreground: 200 54% 20%;
+  --muted: 200 20% 94%;
+  --muted-foreground: 200 16% 36%;
+  --success: 146 62% 34%;
+  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 25 100% 12%;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  font-family: "Poppins", "Segoe UI", sans-serif;
+}
+
+#root {
+  @apply min-h-screen;
+}

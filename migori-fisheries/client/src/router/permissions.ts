@@ -1,0 +1,23 @@
+import type { Role } from "@/types";
+
+export interface NavItem {
+  label: string;
+  path: string;
+  allowedRoles: Role[];
+}
+
+export const navItems: NavItem[] = [
+  { label: "Dashboard", path: "/dashboard", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"] },
+  { label: "Farmers", path: "/farmers", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"] },
+  { label: "Licenses", path: "/licenses", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"] },
+  { label: "Projects", path: "/projects", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"] },
+  { label: "Inspections", path: "/inspections", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"] },
+  { label: "Reports", path: "/reports", allowedRoles: ["DIRECTOR", "DATA_ANALYST"] },
+  { label: "Analytics", path: "/analytics", allowedRoles: ["DIRECTOR", "DATA_ANALYST"] },
+  { label: "Users", path: "/users", allowedRoles: ["DIRECTOR", "ADMIN"] },
+  { label: "Settings", path: "/settings", allowedRoles: ["DIRECTOR", "ADMIN"] },
+  { label: "Backups", path: "/admin/backups", allowedRoles: ["ADMIN"] },
+  { label: "My Farm", path: "/farmer/my-farm", allowedRoles: ["FARMER"] },
+  { label: "Advisories", path: "/farmer/advisories", allowedRoles: ["FARMER"] },
+  { label: "Queries", path: "/farmer/queries", allowedRoles: ["FARMER"] }
+];

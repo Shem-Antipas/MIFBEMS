@@ -1,0 +1,19 @@
+import { prisma } from "../lib/prisma.js";
+export const listFarmersByActor = (actor) => {
+    if (actor.role === "DIRECTOR" || actor.role === "DATA_ANALYST") {
+        return prisma.farmer.findMany({ orderBy: { createdAt: "desc" } });
+    }
+    if (actor.role === "FISHERIES_OFFICER") {
+        return prisma.farmer.findMany({
+            where: { subCounty: actor.subCounty ?? undefined },
+            orderBy: { createdAt: "desc" }
+        });
+    }
+    if (actor.role === "FARMER") {
+        return prisma.farmer.findMany({
+            where: { id: actor.id },
+            orderBy: { createdAt: "desc" }
+        });
+    }
+    return Promise.resolve([]);
+};
