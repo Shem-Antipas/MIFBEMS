@@ -1,11 +1,12 @@
 import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
+import AuthScreen from "@/pages/auth/AuthScreen";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -71,64 +72,58 @@ const LoginPage = () => {
   };
 
   return (
-    <div
-      className="relative grid min-h-screen place-items-center overflow-hidden bg-slate-950 p-4"
-      style={{
-        backgroundImage:
-          "linear-gradient(90deg, rgba(2, 44, 34, 0.82), rgba(10, 38, 58, 0.44)), url('/images/blue-economy/lake-victoria-fishing-login.jpg')",
-        backgroundPosition: "center",
-        backgroundSize: "cover"
-      }}
-    >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(20,184,166,0.24),transparent_34%)]" />
-      <div className="relative z-10 w-full max-w-md rounded-2xl border bg-card/95 p-6 shadow-2xl backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <img src="/migori-county-logo.png" alt="Migori County Government" className="h-14 w-14 shrink-0" />
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Migori County</p>
-            <h1 className="mt-1 text-2xl font-bold">MiFBeDAS Login</h1>
-          </div>
-        </div>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Migori Fisheries and Blue Economy Data & Analytics System
-        </p>
-
-        <form className="mt-5 space-y-4" onSubmit={handleSubmit(onSubmit)}>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Email</label>
-            <Input {...register("email")} placeholder="you@example.com" />
-            {errors.email ? <p className="mt-1 text-xs text-red-600">{errors.email.message}</p> : null}
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">Password</label>
-            <Input {...register("password")} type="password" placeholder="********" />
-            {errors.password ? <p className="mt-1 text-xs text-red-600">{errors.password.message}</p> : null}
-          </div>
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? "Signing in..." : "Sign In"}
-          </Button>
-        </form>
-
-        <div className="mt-5 border-t pt-4">
-          <p className="text-xs font-medium text-muted-foreground">Quick demo accounts</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {helpers.map((item) => (
-              <button
-                key={item.email}
-                type="button"
-                className="rounded-md border px-2 py-1 text-xs hover:bg-secondary"
-                onClick={() => {
-                  setValue("email", item.email);
-                  setValue("password", item.password);
-                }}
-              >
-                {item.email}
-              </button>
-            ))}
-          </div>
+    <AuthScreen>
+      <div className="flex items-center gap-3">
+        <img src="/migori-county-logo.png" alt="Migori County Government" className="h-14 w-14 shrink-0" />
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Migori County</p>
+          <h1 className="mt-1 text-2xl font-bold">MiFBeDAS Login</h1>
         </div>
       </div>
-    </div>
+      <p className="mt-3 text-sm text-muted-foreground">
+        Migori Fisheries and Blue Economy Data & Analytics System
+      </p>
+
+      <form className="mt-5 space-y-4" onSubmit={handleSubmit(onSubmit)}>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Email</label>
+          <Input {...register("email")} placeholder="you@example.com" />
+          {errors.email ? <p className="mt-1 text-xs text-red-600">{errors.email.message}</p> : null}
+        </div>
+        <div>
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <label className="block text-sm font-medium">Password</label>
+            <Link className="text-xs font-medium text-primary hover:underline" to="/forgot-password">
+              Forgot password?
+            </Link>
+          </div>
+          <Input {...register("password")} type="password" placeholder="********" />
+          {errors.password ? <p className="mt-1 text-xs text-red-600">{errors.password.message}</p> : null}
+        </div>
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? "Signing in..." : "Sign In"}
+        </Button>
+      </form>
+
+      <div className="mt-5 border-t pt-4">
+        <p className="text-xs font-medium text-muted-foreground">Quick demo accounts</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {helpers.map((item) => (
+            <button
+              key={item.email}
+              type="button"
+              className="rounded-md border px-2 py-1 text-xs hover:bg-secondary"
+              onClick={() => {
+                setValue("email", item.email);
+                setValue("password", item.password);
+              }}
+            >
+              {item.email}
+            </button>
+          ))}
+        </div>
+      </div>
+    </AuthScreen>
   );
 };
 

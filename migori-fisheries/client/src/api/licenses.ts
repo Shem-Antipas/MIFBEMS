@@ -3,11 +3,44 @@ import type { License } from "@/types";
 
 export type CreateLicensePayload = Pick<
   License,
-  "licenseNo" | "receiptNo" | "bmuName" | "farmerId" | "type" | "issuedDate" | "expiryDate"
+  | "licenseNo"
+  | "receiptNo"
+  | "bmuName"
+  | "holderName"
+  | "holderIdNumber"
+  | "holderPhoneNumber"
+  | "holderEmail"
+  | "subCounty"
+  | "ward"
+  | "beachName"
+  | "market"
+  | "amountLicensed"
+  | "farmerId"
+  | "type"
+  | "issuedDate"
+  | "expiryDate"
 >;
 
 export type UpdateLicensePayload = Partial<
-  Pick<License, "licenseNo" | "receiptNo" | "bmuName" | "type" | "issuedDate" | "expiryDate" | "status">
+  Pick<
+    License,
+    | "licenseNo"
+    | "receiptNo"
+    | "bmuName"
+    | "holderName"
+    | "holderIdNumber"
+    | "holderPhoneNumber"
+    | "holderEmail"
+    | "subCounty"
+    | "ward"
+    | "beachName"
+    | "market"
+    | "amountLicensed"
+    | "type"
+    | "issuedDate"
+    | "expiryDate"
+    | "status"
+  >
 >;
 
 export const licensesApi = {

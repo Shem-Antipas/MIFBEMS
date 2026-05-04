@@ -34,11 +34,17 @@ const verify = async (token: string, secret: Uint8Array): Promise<TokenPayload> 
     throw new Error("Invalid token payload");
   }
 
+  const tokenVersion = tokenPayload.tokenVersion;
+  if (tokenVersion !== undefined && (typeof tokenVersion !== "number" || !Number.isInteger(tokenVersion))) {
+    throw new Error("Invalid token payload");
+  }
+
   return {
     id: tokenPayload.id,
     role: tokenPayload.role,
     subCounty: tokenPayload.subCounty ?? null,
-    type: tokenPayload.type
+    type: tokenPayload.type,
+    tokenVersion: tokenVersion ?? 0
   };
 };
 

@@ -3,7 +3,19 @@ import type { CaptureFisheriesRecord } from "@/types";
 
 export type CreateCaptureFisheriesPayload = Pick<
   CaptureFisheriesRecord,
-  "fisherName" | "bmuName" | "landingSite" | "species" | "catchKg" | "effortHours" | "fishingDate"
+  | "fisherName"
+  | "idNumber"
+  | "phoneNumber"
+  | "ward"
+  | "bmuName"
+  | "landingSite"
+  | "species"
+  | "catchKg"
+  | "value"
+  | "month"
+  | "year"
+  | "effortHours"
+  | "fishingDate"
 >;
 
 export const captureFisheriesApi = {

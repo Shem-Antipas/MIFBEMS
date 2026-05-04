@@ -25,11 +25,16 @@ const verify = async (token, secret) => {
     if (!tokenPayload.id || !tokenPayload.role || !Object.hasOwn(tokenPayload, "subCounty") || !tokenPayload.type) {
         throw new Error("Invalid token payload");
     }
+    const tokenVersion = tokenPayload.tokenVersion;
+    if (tokenVersion !== undefined && (typeof tokenVersion !== "number" || !Number.isInteger(tokenVersion))) {
+        throw new Error("Invalid token payload");
+    }
     return {
         id: tokenPayload.id,
         role: tokenPayload.role,
         subCounty: tokenPayload.subCounty ?? null,
-        type: tokenPayload.type
+        type: tokenPayload.type,
+        tokenVersion: tokenVersion ?? 0
     };
 };
 export const verifyAccessToken = (token) => verify(token, accessSecret);

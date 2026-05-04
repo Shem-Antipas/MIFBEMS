@@ -5,14 +5,23 @@ type InitialLicensePayload = {
   licenseNo: string;
   receiptNo: string;
   bmuName?: string;
-  type: "FISHERMAN" | "FISH_TRADER" | "BOAT";
+  type:
+    | "FISH_DEPOT"
+    | "FISHERMAN"
+    | "FISH_TRADER"
+    | "BOAT_OWNER"
+    | "FISH_MOVEMENT_PERMIT"
+    | "BOAT_LICENSE"
+    | "NEW_BOARD_REGISTRATION"
+    | "ICE_PLANT"
+    | "BOAT";
   issuedDate: string;
   expiryDate: string;
 };
 
 export type CreateFarmerPayload = Omit<
   Farmer,
-  "id" | "registeredById" | "createdAt" | "updatedAt" | "licenseNo"
+  "id" | "farmerCode" | "registeredById" | "createdAt" | "updatedAt" | "licenseNo"
 > & {
   licenseNo?: string;
   initialLicense?: InitialLicensePayload;

@@ -8,8 +8,10 @@ export interface SummaryResponse {
 }
 
 export const reportsApi = {
-  async summary(): Promise<SummaryResponse> {
-    const { data } = await apiClient.get<{ data: SummaryResponse }>("/reports/summary");
+  async summary(subCounty?: string): Promise<SummaryResponse> {
+    const { data } = await apiClient.get<{ data: SummaryResponse }>("/reports/summary", {
+      params: subCounty ? { subCounty } : undefined
+    });
     return data.data;
   }
 };

@@ -24,13 +24,16 @@ const main = async (): Promise<void> => {
           species: ["Tilapia"],
           status: FarmerStatus.ACTIVE,
           productionKg: 10,
+          numberOfPonds: 3,
+          activePonds: 2,
+          inactivePonds: 1,
           latitude: -1.0634,
           longitude: 34.4742,
           registeredById: user.id
         }
       });
 
-      console.log(`Farmer create reached database successfully: ${farmer.id}`);
+      console.log(`Farmer create reached database successfully: ${farmer.farmerCode} (${farmer.id})`);
       throw new Error(rollbackMarker);
     });
   } catch (error) {

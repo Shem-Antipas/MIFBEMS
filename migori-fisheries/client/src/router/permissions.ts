@@ -6,6 +6,8 @@ export interface NavItem {
   allowedRoles: Role[];
 }
 
+export const allRoles: Role[] = ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER", "ADMIN"];
+
 export const navItems: NavItem[] = [
   { label: "Dashboard", path: "/dashboard", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"] },
   { label: "Farmers", path: "/farmers", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"] },
@@ -16,7 +18,7 @@ export const navItems: NavItem[] = [
   { label: "Reports", path: "/reports", allowedRoles: ["DIRECTOR", "DATA_ANALYST"] },
   { label: "Analytics", path: "/analytics", allowedRoles: ["DIRECTOR", "DATA_ANALYST"] },
   { label: "Users", path: "/users", allowedRoles: ["DIRECTOR", "ADMIN"] },
-  { label: "Settings", path: "/settings", allowedRoles: ["DIRECTOR", "ADMIN"] },
+  { label: "Settings", path: "/settings", allowedRoles: allRoles },
   { label: "Backups", path: "/admin/backups", allowedRoles: ["ADMIN"] },
   { label: "My Farm", path: "/farmer/my-farm", allowedRoles: ["FARMER"] },
   { label: "Advisories", path: "/farmer/advisories", allowedRoles: ["FARMER"] },

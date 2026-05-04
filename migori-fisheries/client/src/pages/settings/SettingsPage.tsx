@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useTheme, type Theme } from "@/hooks/useTheme";
+import { useAuthStore } from "@/store/authStore";
 
 const themeOptions: Array<{ value: Theme; label: string; icon: typeof Sun }> = [
   { value: "light", label: "Light", icon: Sun },
@@ -13,6 +14,8 @@ const themeOptions: Array<{ value: Theme; label: string; icon: typeof Sun }> = [
 
 const SettingsPage = () => {
   const { theme, setTheme } = useTheme();
+  const user = useAuthStore((state) => state.user);
+  const canManageSecurity = user?.role === "DIRECTOR" || user?.role === "ADMIN";
 
   return (
     <section className="space-y-4">
@@ -46,6 +49,7 @@ const SettingsPage = () => {
         </CardContent>
       </Card>
 
+      {canManageSecurity ? (
       <div className="space-y-4 rounded-lg border bg-card p-4">
         <div className="flex items-center justify-between gap-4">
           <Label htmlFor="push-advisories">Enable farmer advisories push</Label>
@@ -60,6 +64,7 @@ const SettingsPage = () => {
           <Checkbox id="lock-write-endpoints" />
         </div>
       </div>
+      ) : null}
     </section>
   );
 };

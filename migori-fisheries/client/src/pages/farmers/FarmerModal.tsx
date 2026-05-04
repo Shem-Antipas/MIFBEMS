@@ -12,19 +12,35 @@ import { getWardCoordinates, MIGORI_SUBCOUNTIES, WARDS_BY_SUBCOUNTY, type Locati
 
 const farmerSchema = z.object({
   name: z.string().min(2),
+  idNumber: z.string().optional(),
+  phoneNumber: z.string().optional(),
+  email: z.string().email("Enter a valid email").optional().or(z.literal("")),
   subCounty: z.enum(MIGORI_SUBCOUNTIES),
   ward: z.string().min(2, "Ward is required"),
   farmType: z.enum(["POND", "CAGE", "TANK", "DAM"]),
-  status: z.enum(["ACTIVE", "INACTIVE"]),
+  status: z.enum(["ACTIVE", "INACTIVE", "PARTIALLY_ACTIVE"]),
   species: z.string().min(2),
   productionKg: z.number().min(0),
+  numberOfPonds: z.number().int().min(0),
+  activePonds: z.number().int().min(0),
+  inactivePonds: z.number().int().min(0),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   issueLicense: z.boolean(),
   licenseNo: z.string().optional(),
   receiptNo: z.string().optional(),
   bmuName: z.string().optional(),
-  licenseType: z.enum(["FISHERMAN", "FISH_TRADER", "BOAT"]).optional(),
+  licenseType: z.enum([
+    "FISH_DEPOT",
+    "FISHERMAN",
+    "FISH_TRADER",
+    "BOAT_OWNER",
+    "FISH_MOVEMENT_PERMIT",
+    "BOAT_LICENSE",
+    "NEW_BOARD_REGISTRATION",
+    "ICE_PLANT",
+    "BOAT"
+  ]).optional(),
   licenseIssuedDate: z.string().optional(),
   licenseExpiryDate: z.string().optional()
 }).superRefine((value, ctx) => {
@@ -77,6 +93,14 @@ const farmerSchema = z.object({
         });
       }
     }
+  }
+
+  if (value.activePonds + value.inactivePonds > value.numberOfPonds) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["numberOfPonds"],
+      message: "Active and inactive ponds cannot exceed total ponds"
+    });
   }
 });
 
@@ -136,6 +160,9 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting, canRecordLicense }
       status: "ACTIVE",
       species: "Tilapia",
       productionKg: 0,
+      numberOfPonds: 0,
+      activePonds: 0,
+      inactivePonds: 0,
       issueLicense: false
     }
   });
@@ -161,12 +188,18 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting, canRecordLicense }
   const submitForm = async (values: FarmerFormValues) => {
     await onSubmit({
       name: values.name,
+      idNumber: values.idNumber?.trim() || undefined,
+      phoneNumber: values.phoneNumber?.trim() || undefined,
+      email: values.email?.trim() || undefined,
       subCounty: values.subCounty,
       ward: values.ward,
       farmType: values.farmType,
       status: values.status,
       species: values.species.split(",").map((item) => item.trim()).filter(Boolean),
       productionKg: values.productionKg,
+      numberOfPonds: values.numberOfPonds,
+      activePonds: values.activePonds,
+      inactivePonds: values.inactivePonds,
       latitude: selectedLocation.lat,
       longitude: selectedLocation.lng,
       initialLicense: values.issueLicense
@@ -208,6 +241,22 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting, canRecordLicense }
           </div>
 
           <div>
+            <label className="mb-1 block text-sm font-medium">ID No.</label>
+            <Input {...register("idNumber")} placeholder="National ID / passport" />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">Phone Number</label>
+            <Input {...register("phoneNumber")} placeholder="07..." />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">Email (optional)</label>
+            <Input type="email" {...register("email")} placeholder="name@example.com" />
+            {errors.email ? <p className="text-xs text-red-600">{errors.email.message}</p> : null}
+          </div>
+
+          <div>
             <label className="mb-1 block text-sm font-medium">Sub-County</label>
             <select
               className="w-full rounded-lg border px-3 py-2 text-sm"
@@ -237,7 +286,7 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting, canRecordLicense }
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium">Farm Type</label>
+            <label className="mb-1 block text-sm font-medium">Production Unit</label>
             <select className="w-full rounded-lg border px-3 py-2 text-sm" {...register("farmType")}>
               <option value="POND">Pond</option>
               <option value="CAGE">Cage</option>
@@ -247,10 +296,11 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting, canRecordLicense }
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium">Farmer Status</label>
+            <label className="mb-1 block text-sm font-medium">Status of the Farm</label>
             <select className="w-full rounded-lg border bg-background px-3 py-2 text-sm" {...register("status")}>
               <option value="ACTIVE">Active</option>
               <option value="INACTIVE">Inactive</option>
+              <option value="PARTIALLY_ACTIVE">Partially Active</option>
             </select>
           </div>
 
@@ -263,6 +313,28 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting, canRecordLicense }
             <label className="mb-1 block text-sm font-medium">Production (Kg)</label>
             <Input type="number" step="0.1" {...register("productionKg", { valueAsNumber: true })} />
           </div>
+
+            <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 md:col-span-2 md:grid-cols-3">
+              <div className="md:col-span-3">
+                <p className="text-sm font-medium">Production Unit Details</p>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">Number of Production Units</label>
+                <Input type="number" min="0" step="1" {...register("numberOfPonds", { valueAsNumber: true })} />
+                {errors.numberOfPonds ? <p className="text-xs text-red-600">{errors.numberOfPonds.message}</p> : null}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">Number Active</label>
+                <Input type="number" min="0" step="1" {...register("activePonds", { valueAsNumber: true })} />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium">Number Inactive</label>
+                <Input type="number" min="0" step="1" {...register("inactivePonds", { valueAsNumber: true })} />
+              </div>
+            </div>
 
           {canRecordLicense ? (
           <div className="md:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
@@ -294,9 +366,14 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting, canRecordLicense }
                   <label className="mb-1 block text-sm font-medium">License Type</label>
                   <select className="w-full rounded-lg border px-3 py-2 text-sm" {...register("licenseType")}>
                     <option value="">Select type</option>
-                    <option value="FISHERMAN">Fishermen</option>
-                    <option value="FISH_TRADER">Fish Traders</option>
-                    <option value="BOAT">Boats</option>
+                    <option value="FISH_DEPOT">Fish Depot</option>
+                    <option value="FISH_TRADER">Fish Traders License</option>
+                    <option value="BOAT_OWNER">Boat Owner License</option>
+                    <option value="FISHERMAN">Fishermen License</option>
+                    <option value="FISH_MOVEMENT_PERMIT">Fish Movement Permit</option>
+                    <option value="BOAT_LICENSE">Boat Licensing</option>
+                    <option value="NEW_BOARD_REGISTRATION">New Board Registration License</option>
+                    <option value="ICE_PLANT">Ice Plant License</option>
                   </select>
                   {errors.licenseType ? <p className="text-xs text-red-600">{errors.licenseType.message}</p> : null}
                 </div>

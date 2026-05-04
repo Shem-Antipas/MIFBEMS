@@ -5,11 +5,26 @@ import { env } from "../lib/env.js";
 import { asyncHandler, HttpError } from "../lib/http.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { validate } from "../middleware/validate.js";
-import { getCurrentUser, loginWithEmailPassword, refreshSession } from "../services/authService.js";
+import { getCurrentUser, loginWithEmailPassword, refreshSession, requestPasswordReset, resetPassword } from "../services/authService.js";
 const router = Router();
 const loginSchema = z.object({
     email: z.string().email(),
     password: z.string().min(8)
+});
+const newPasswordSchema = z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password must be 128 characters or fewer")
+    .regex(/[a-z]/, "Password must include a lowercase letter")
+    .regex(/[A-Z]/, "Password must include an uppercase letter")
+    .regex(/[0-9]/, "Password must include a number")
+    .regex(/[^A-Za-z0-9]/, "Password must include a symbol");
+const forgotPasswordSchema = z.object({
+    email: z.string().trim().email()
+});
+const resetPasswordSchema = z.object({
+    token: z.string().min(32).max(512),
+    password: newPasswordSchema
 });
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -18,6 +33,20 @@ const loginLimiter = rateLimit({
     legacyHeaders: false,
     skipSuccessfulRequests: true,
     message: { error: "Too many login attempts. Please try again later." }
+});
+const passwordResetRequestLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: env.NODE_ENV === "development" ? 1000 : 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many password reset requests. Please try again later." }
+});
+const passwordResetLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: env.NODE_ENV === "development" ? 1000 : 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many password reset attempts. Please try again later." }
 });
 const cookieOptions = {
     httpOnly: true,
@@ -34,6 +63,17 @@ router.post("/login", loginLimiter, validate({ body: loginSchema }), asyncHandle
         accessToken: session.accessToken,
         user: session.user
     });
+}));
+router.post("/forgot-password", passwordResetRequestLimiter, validate({ body: forgotPasswordSchema }), asyncHandler(async (req, res) => {
+    const { email } = req.body;
+    const result = await requestPasswordReset(email);
+    res.status(200).json(result);
+}));
+router.post("/reset-password", passwordResetLimiter, validate({ body: resetPasswordSchema }), asyncHandler(async (req, res) => {
+    const { token, password } = req.body;
+    await resetPassword(token, password);
+    res.clearCookie("refreshToken", { ...cookieOptions, maxAge: undefined });
+    res.status(200).json({ message: "Password reset successful. Please sign in with your new password." });
 }));
 router.post("/refresh", asyncHandler(async (req, res) => {
     const refreshToken = req.cookies.refreshToken;

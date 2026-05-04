@@ -6,7 +6,7 @@ export type CreateUserPayload = {
   email: string;
   password: string;
   role: User["role"];
-  subCounty?: string;
+  subCounty?: string | null;
   isActive?: boolean;
 };
 

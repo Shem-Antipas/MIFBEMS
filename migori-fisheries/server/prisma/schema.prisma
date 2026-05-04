@@ -14,6 +14,10 @@ model User {
   name                    String
   email                   String                   @unique
   passwordHash            String
+  passwordResetTokenHash  String?
+  passwordResetExpiresAt  DateTime?
+  passwordChangedAt       DateTime?
+  tokenVersion            Int                      @default(0)
   role                    Role
   subCounty               String?
   isActive                Boolean                  @default(true)
@@ -27,6 +31,7 @@ model User {
 
   @@index([role])
   @@index([subCounty])
+  @@index([passwordResetTokenHash])
 }
 
 enum Role {
@@ -39,7 +44,11 @@ enum Role {
 
 model Farmer {
   id                String             @id @default(cuid())
+  farmerCode        String             @unique @default(dbgenerated("('MIF-FRM-'::text || lpad((nextval('\"Farmer_farmerCode_seq\"'::regclass))::text, 6, '0'::text))"))
   name              String
+  idNumber          String?
+  phoneNumber       String?
+  email             String?
   subCounty         String
   ward              String             @default("Unspecified")
   farmType          FarmType
@@ -47,6 +56,9 @@ model Farmer {
   licenseNo         String?
   status            FarmerStatus       @default(ACTIVE)
   productionKg      Float              @default(0)
+  numberOfPonds     Int                @default(0)
+  activePonds       Int                @default(0)
+  inactivePonds     Int                @default(0)
   latitude          Float?
   longitude         Float?
   registeredById    String
@@ -70,6 +82,7 @@ enum FarmType {
 enum FarmerStatus {
   ACTIVE
   INACTIVE
+  PARTIALLY_ACTIVE
   SUSPENDED
 }
 
@@ -78,8 +91,19 @@ model License {
   licenseNo    String        @unique
   receiptNo    String?       @unique
   bmuName      String?
-  farmerId     String
-  farmer       Farmer        @relation(fields: [farmerId], references: [id])
+  holderName   String?
+  holderIdNumber String?
+  holderPhoneNumber String?
+  holderEmail  String?
+  subCounty    String?
+  ward         String?
+  beachName    String?
+  market       String?
+  amountLicensed Float       @default(0)
+  licensedById String?
+  licensedByName String?
+  farmerId     String?
+  farmer       Farmer?       @relation(fields: [farmerId], references: [id])
   type         LicenseType
   issuedDate   DateTime
   expiryDate   DateTime
@@ -93,8 +117,14 @@ model License {
 }
 
 enum LicenseType {
+  FISH_DEPOT
   FISHERMAN
   FISH_TRADER
+  BOAT_OWNER
+  FISH_MOVEMENT_PERMIT
+  BOAT_LICENSE
+  NEW_BOARD_REGISTRATION
+  ICE_PLANT
   BOAT
 }
 
@@ -123,13 +153,20 @@ model ProductionRecord {
 
 model CaptureFisheriesRecord {
   id           String   @id @default(cuid())
+  captureCode  String   @unique @default(dbgenerated("('MIF-CAP-'::text || lpad((nextval('\"CaptureFisheriesRecord_captureCode_seq\"'::regclass))::text, 6, '0'::text))"))
   fisherName   String
+  idNumber     String?
+  phoneNumber  String?
   bmuName      String?
   landingSite  String?
+  ward         String   @default("Unspecified")
   species      String
   catchKg      Float
+  value        Float    @default(0)
   effortHours  Float?
   fishingDate  DateTime
+  month        Int?
+  year         Int?
   subCounty    String   @default("Nyatike")
   recordedById String
   recordedBy   User     @relation(fields: [recordedById], references: [id])
@@ -163,11 +200,20 @@ enum InspectionResult {
 
 model BlueEconomyProject {
   id        String        @id @default(cuid())
+  projectCode String      @unique @default(dbgenerated("('MIF-PRJ-'::text || lpad((nextval('\"BlueEconomyProject_projectCode_seq\"'::regclass))::text, 6, '0'::text))"))
+  category  ProjectCategory @default(BLUE_ECONOMY)
   name      String
+  description String      @default("")
   subCounty String
+  ward      String        @default("Unspecified")
+  latitude  Float?
+  longitude Float?
   budget    Float
   funder    String
   status    ProjectStatus @default(PLANNED)
+  photos    String[]      @default([])
+  responsibleOfficerId String?
+  responsibleOfficerName String?
   startDate DateTime
   endDate   DateTime?
   createdAt DateTime      @default(now())
@@ -177,7 +223,16 @@ model BlueEconomyProject {
   @@index([status])
 }
 
+enum ProjectCategory {
+  BLUE_ECONOMY
+  LAKEFRONT_DEVELOPMENT
+  AQUACULTURE_DEVELOPMENT
+}
+
 enum ProjectStatus {
+  PENDING
+  IN_PROGRESS
+  STALLED
   PLANNED
   ONGOING
   COMPLETED

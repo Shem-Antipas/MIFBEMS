@@ -27,11 +27,16 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
     const dbUser = await prisma.user.findUnique({
       where: { id: payload.id },
-      select: { id: true, role: true, subCounty: true, isActive: true }
+      select: { id: true, role: true, subCounty: true, isActive: true, tokenVersion: true }
     });
 
     if (!dbUser || !dbUser.isActive) {
       res.status(401).json({ error: "User not authorized" });
+      return;
+    }
+
+    if (payload.tokenVersion !== dbUser.tokenVersion) {
+      res.status(401).json({ error: "Session has expired. Please sign in again." });
       return;
     }
 

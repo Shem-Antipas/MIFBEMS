@@ -15,6 +15,7 @@ interface SubCountyLayerProps {
   };
   officerSubCounty?: string | null;
   onSubCountyClick: (subCounty: string) => void;
+  onSubCountyHover?: (subCounty: string | null) => void;
 }
 
 const palettes: Record<MapMetric, string[]> = {
@@ -45,12 +46,33 @@ const quantizeColor = (value: number, max: number, metric: MapMetric): string =>
   return palette[index];
 };
 
-const SubCountyLayer = ({ data, metric, metrics, officerSubCounty, onSubCountyClick }: SubCountyLayerProps) => {
+const escapeHtml = (value: string): string =>
+  value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+
+const getShare = (value: number, total: number): number => (total > 0 ? (value / total) * 100 : 0);
+
+const formatNumber = (value: number, maximumFractionDigits = 0): string =>
+  value.toLocaleString(undefined, { maximumFractionDigits });
+
+const SubCountyLayer = ({
+  data,
+  metric,
+  metrics,
+  officerSubCounty,
+  onSubCountyClick,
+  onSubCountyHover
+}: SubCountyLayerProps) => {
   const values = Object.values(metrics[metric]);
   const maxValue = values.length ? Math.max(...values) : 0;
+  const totals = {
+    farmers: Object.values(metrics.farmers).reduce((total, value) => total + value, 0),
+    production: Object.values(metrics.production).reduce((total, value) => total + value, 0),
+    licenses: Object.values(metrics.licenses).reduce((total, value) => total + value, 0)
+  };
 
   return (
     <GeoJSON
+      key={metric}
       data={data}
       style={(feature) => {
         if (!feature) {
@@ -72,13 +94,18 @@ const SubCountyLayer = ({ data, metric, metrics, officerSubCounty, onSubCountyCl
         const farmersValue = metrics.farmers[name] ?? 0;
         const productionValue = metrics.production[name] ?? 0;
         const licensesValue = metrics.licenses[name] ?? 0;
+        const activeValue = metrics[metric][name] ?? 0;
+        const activeShare = getShare(activeValue, totals[metric]);
+        const complianceRate = farmersValue > 0 ? Math.min((licensesValue / farmersValue) * 100, 100) : 0;
 
         layer.bindTooltip(
-          `<strong>${name}</strong><br/>Farmers: ${farmersValue}<br/>Production: ${productionValue} kg<br/>Licenses: ${licensesValue}`,
+          `<strong>${escapeHtml(name)}</strong><br/>Selected share: ${formatNumber(activeShare, 1)}%<br/>Farmers: ${formatNumber(farmersValue)}<br/>Production: ${formatNumber(productionValue)} kg<br/>Licenses: ${formatNumber(licensesValue)}<br/>Licensing coverage: ${formatNumber(complianceRate, 1)}%`,
           { sticky: true }
         );
 
         layer.on({
+          mouseover: () => onSubCountyHover?.(name),
+          mouseout: () => onSubCountyHover?.(null),
           click: () => onSubCountyClick(name)
         });
       }}

@@ -29,7 +29,7 @@ const WardLayer = ({ data, selectedSubCounty, onBack }: WardLayerProps) => {
     <>
       <button
         onClick={onBack}
-        className="absolute right-4 top-4 z-[500] rounded-lg border bg-white px-3 py-1.5 text-xs font-medium shadow"
+        className="absolute right-3 top-3 z-[500] rounded-lg border bg-card px-3 py-1.5 text-xs font-medium shadow sm:right-4 sm:top-4"
       >
         Back to Sub-Counties
       </button>

@@ -14,6 +14,9 @@ const router = Router();
 
 const createFarmerSchema = z.object({
   name: z.string().min(2),
+  idNumber: z.string().min(4).optional(),
+  phoneNumber: z.string().min(7).optional(),
+  email: z.string().email().optional(),
   subCounty: z.enum(MIGORI_SUBCOUNTIES),
   ward: z.string().min(2),
   farmType: z.enum(FarmType),
@@ -21,6 +24,9 @@ const createFarmerSchema = z.object({
   licenseNo: z.string().optional(),
   status: z.enum(FarmerStatus).optional(),
   productionKg: z.number().min(0).optional(),
+  numberOfPonds: z.number().int().min(0).optional(),
+  activePonds: z.number().int().min(0).optional(),
+  inactivePonds: z.number().int().min(0).optional(),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
   initialLicense: z
@@ -33,7 +39,7 @@ const createFarmerSchema = z.object({
       expiryDate: z.coerce.date()
     })
     .optional()
-}).superRefine((value, ctx) => {
+}).strict().superRefine((value, ctx) => {
   if (!isValidWardForSubCounty(value.subCounty, value.ward)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -49,11 +55,26 @@ const createFarmerSchema = z.object({
       message: "Expiry date must be later than issued date"
     });
   }
+
+  const numberOfPonds = value.numberOfPonds ?? 0;
+  const activePonds = value.activePonds ?? 0;
+  const inactivePonds = value.inactivePonds ?? 0;
+
+  if (activePonds + inactivePonds > numberOfPonds) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["numberOfPonds"],
+      message: "Active and inactive ponds cannot exceed total ponds"
+    });
+  }
 });
 
 const updateFarmerSchema = z
   .object({
     name: z.string().min(2).optional(),
+    idNumber: z.string().min(4).nullable().optional(),
+    phoneNumber: z.string().min(7).nullable().optional(),
+    email: z.string().email().nullable().optional(),
     subCounty: z.enum(MIGORI_SUBCOUNTIES).optional(),
     ward: z.string().min(2).optional(),
     farmType: z.enum(FarmType).optional(),
@@ -61,6 +82,9 @@ const updateFarmerSchema = z
     licenseNo: z.string().optional(),
     status: z.enum(FarmerStatus).optional(),
     productionKg: z.number().min(0).optional(),
+    numberOfPonds: z.number().int().min(0).optional(),
+    activePonds: z.number().int().min(0).optional(),
+    inactivePonds: z.number().int().min(0).optional(),
     latitude: z.number().min(-90).max(90).optional(),
     longitude: z.number().min(-180).max(180).optional()
   })
@@ -136,7 +160,10 @@ router.post(
           ...farmerPayload,
           licenseNo: initialLicense?.licenseNo ?? farmerPayload.licenseNo,
           registeredById: req.user.id,
-          productionKg: farmerPayload.productionKg ?? 0
+          productionKg: farmerPayload.productionKg ?? 0,
+          numberOfPonds: farmerPayload.numberOfPonds ?? 0,
+          activePonds: farmerPayload.activePonds ?? 0,
+          inactivePonds: farmerPayload.inactivePonds ?? 0
         }
       });
 
@@ -149,7 +176,14 @@ router.post(
           data: {
             ...initialLicense,
             status: LicenseStatus.PENDING,
-            farmerId: created.id
+            farmerId: created.id,
+            holderName: created.name,
+            holderIdNumber: created.idNumber,
+            holderPhoneNumber: created.phoneNumber,
+            holderEmail: created.email,
+            subCounty: created.subCounty,
+            ward: created.ward,
+            licensedById: req.user.id
           }
         });
       }
@@ -190,9 +224,16 @@ router.put(
     const payload = req.body as z.infer<typeof updateFarmerSchema>;
     const targetSubCounty = payload.subCounty ?? existingFarmer.subCounty;
     const targetWard = payload.ward ?? existingFarmer.ward;
+    const targetNumberOfPonds = payload.numberOfPonds ?? existingFarmer.numberOfPonds;
+    const targetActivePonds = payload.activePonds ?? existingFarmer.activePonds;
+    const targetInactivePonds = payload.inactivePonds ?? existingFarmer.inactivePonds;
 
     if (!isValidWardForSubCounty(targetSubCounty, targetWard)) {
       throw new HttpError(400, "Selected ward does not belong to the selected sub-county");
+    }
+
+    if (targetActivePonds + targetInactivePonds > targetNumberOfPonds) {
+      throw new HttpError(400, "Active and inactive ponds cannot exceed total ponds");
     }
 
     const farmer = await prisma.farmer.update({

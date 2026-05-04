@@ -1,7 +1,10 @@
 import { apiClient } from "@/api/client";
 import type { BlueEconomyProject } from "@/types";
 
-export type CreateProjectPayload = Omit<BlueEconomyProject, "id" | "createdAt" | "updatedAt">;
+export type CreateProjectPayload = Omit<
+  BlueEconomyProject,
+  "id" | "projectCode" | "createdAt" | "updatedAt" | "responsibleOfficerId" | "responsibleOfficerName"
+>;
 export type UpdateProjectPayload = Partial<CreateProjectPayload>;
 
 export const projectsApi = {

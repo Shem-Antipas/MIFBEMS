@@ -24,7 +24,8 @@ router.get("/summary", validate({ query: summaryQuerySchema }), authorize(["DIRE
         }),
         prisma.license.groupBy({
             by: ["status"],
-            _count: { id: true }
+            _count: { id: true },
+            where: subCounty ? { farmer: { subCounty } } : {}
         })
     ]);
     res.status(200).json({

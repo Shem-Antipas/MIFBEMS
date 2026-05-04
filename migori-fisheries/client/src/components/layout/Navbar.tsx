@@ -1,25 +1,49 @@
+import { LogOut, Menu } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/authStore";
 import { formatRole } from "@/lib/utils";
 
-const Navbar = () => {
+interface NavbarProps {
+  onMenuClick: () => void;
+}
+
+const Navbar = ({ onMenuClick }: NavbarProps) => {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
 
   return (
-    <header className="flex items-center justify-between border-b bg-card px-6 py-4">
-      <div className="flex items-center gap-3">
-        <img src="/migori-county-logo.png" alt="Migori County Government" className="h-10 w-10 shrink-0 lg:hidden" />
-        <div>
-        <h2 className="text-lg font-semibold">Migori Fisheries and Blue Economy Data & Analytics System</h2>
-        <p className="text-xs text-muted-foreground">Role: {user ? formatRole(user.role) : "Unknown"}</p>
+    <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b bg-card/95 px-3 py-3 backdrop-blur sm:px-6 lg:static lg:py-4">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="lg:hidden"
+          aria-label="Open navigation menu"
+          onClick={onMenuClick}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <img src="/migori-county-logo.png" alt="Migori County Government" className="h-9 w-9 shrink-0 lg:hidden" />
+        <div className="min-w-0">
+          <h2 className="truncate text-base font-semibold sm:text-lg">
+            <span className="sm:hidden">MiFBeDAS</span>
+            <span className="hidden sm:inline">Migori Fisheries and Blue Economy Data & Analytics System</span>
+          </h2>
+          <p className="truncate text-xs text-muted-foreground">Role: {user ? formatRole(user.role) : "Unknown"}</p>
         </div>
       </div>
-      <button
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="shrink-0"
         onClick={() => void logout()}
-        className="rounded-lg border px-3 py-2 text-sm text-muted-foreground hover:bg-secondary"
       >
-        Sign out
-      </button>
+        <LogOut className="h-4 w-4" />
+        <span className="hidden sm:inline">Sign out</span>
+      </Button>
     </header>
   );
 };

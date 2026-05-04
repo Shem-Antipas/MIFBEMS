@@ -10,8 +10,8 @@ interface DataTableProps {
 
 const DataTable = ({ headers, rows, emptyLabel = "No records available." }: DataTableProps) => {
   return (
-    <div className="overflow-hidden rounded-lg border bg-card">
-      <Table>
+    <div className="w-full min-w-0 overflow-hidden rounded-lg border bg-card">
+      <Table className="min-w-max">
         <TableHeader className="bg-muted/50">
           <TableRow>
             {headers.map((header) => (
@@ -26,7 +26,7 @@ const DataTable = ({ headers, rows, emptyLabel = "No records available." }: Data
             rows.map((row, index) => (
               <TableRow key={`row-${index}`}>
                 {row.map((cell, cellIndex) => (
-                  <TableCell key={`cell-${index}-${cellIndex}`} className="text-foreground">
+                  <TableCell key={`cell-${index}-${cellIndex}`} className="whitespace-nowrap text-foreground">
                     {cell}
                   </TableCell>
                 ))}

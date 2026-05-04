@@ -13,7 +13,7 @@ const DashboardPage = () => {
   const user = useAuthStore((state) => state.user);
   const { data: summaryData } = useQuery({
     queryKey: ["reports", "summary"],
-    queryFn: reportsApi.summary
+    queryFn: () => reportsApi.summary()
   });
   const { data: farmers = [] } = useFarmers();
   const { data: licenses = [] } = useLicenses();
@@ -117,8 +117,9 @@ const DashboardPage = () => {
       </div>
 
       <DataTable
-        headers={["Farmer", "Sub-County", "Farm Type", "Production (Kg)"]}
+        headers={["Farmer ID", "Farmer", "Sub-County", "Farm Type", "Production (Kg)"]}
         rows={farmers.slice(0, 8).map((farmer) => [
+          farmer.farmerCode,
           farmer.name,
           farmer.subCounty,
           farmer.farmType,

@@ -6,7 +6,7 @@ interface MapLegendProps {
 
 const MapLegend = ({ title, stops, ranges }: MapLegendProps) => {
   return (
-    <div className="absolute bottom-4 left-4 z-[500] w-44 rounded-lg border bg-white/95 p-3 shadow">
+    <div className="absolute bottom-3 left-3 z-[500] w-40 rounded-lg border bg-card/95 p-3 shadow sm:bottom-4 sm:left-4 sm:w-44">
       <p className="text-xs font-semibold text-foreground">{title}</p>
       <div className="mt-2 h-2 overflow-hidden rounded-full">
         <div

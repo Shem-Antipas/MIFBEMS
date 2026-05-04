@@ -2,7 +2,7 @@ const BackupsPage = () => {
   return (
     <section className="space-y-4">
       <h1 className="text-xl font-semibold">System Backups</h1>
-      <div className="rounded-xl border bg-white p-4">
+      <div className="rounded-xl border bg-card p-4">
         <p className="text-sm text-muted-foreground">
           Trigger ad-hoc backups and download the latest encrypted archive.
         </p>

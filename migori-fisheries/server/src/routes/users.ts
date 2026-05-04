@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler, HttpError } from "../lib/http.js";
+import { MIGORI_SUBCOUNTIES } from "../lib/locationData.js";
 import { prisma } from "../lib/prisma.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
@@ -13,6 +14,39 @@ const router = Router();
 
 const idParamSchema = z.object({ id: z.string().min(5) });
 
+const scopedRoles = new Set<Role>([Role.FISHERIES_OFFICER, Role.FARMER]);
+
+const normalizeUserSubCounty = (role: Role, subCounty?: string | null): string | null => {
+  if (!scopedRoles.has(role)) {
+    return null;
+  }
+
+  return subCounty ?? null;
+};
+
+const validateOperationalArea = (role: Role, subCounty: string | null | undefined, ctx: z.RefinementCtx): void => {
+  if (!scopedRoles.has(role)) {
+    return;
+  }
+
+  if (!subCounty) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["subCounty"],
+      message: "Operational sub-county is required for this role"
+    });
+    return;
+  }
+
+  if (!MIGORI_SUBCOUNTIES.includes(subCounty as (typeof MIGORI_SUBCOUNTIES)[number])) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["subCounty"],
+      message: "Select a valid Migori sub-county"
+    });
+  }
+};
+
 const createUserSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
@@ -20,6 +54,8 @@ const createUserSchema = z.object({
   role: z.enum(Role),
   subCounty: z.string().min(2).optional(),
   isActive: z.boolean().optional()
+}).strict().superRefine((value, ctx) => {
+  validateOperationalArea(value.role, value.subCounty, ctx);
 });
 
 const updateUserSchema = z.object({
@@ -29,7 +65,7 @@ const updateUserSchema = z.object({
   subCounty: z.string().min(2).nullable().optional(),
   isActive: z.boolean().optional(),
   password: z.string().min(8).optional()
-});
+}).strict();
 
 router.use(authenticate);
 
@@ -99,7 +135,7 @@ router.post(
         email: payload.email.toLowerCase(),
         passwordHash,
         role: payload.role,
-        subCounty: payload.subCounty,
+        subCounty: normalizeUserSubCounty(payload.role, payload.subCounty),
         isActive: payload.isActive ?? true
       },
       select: {
@@ -127,6 +163,30 @@ router.put(
     const { id } = req.params as z.infer<typeof idParamSchema>;
     const payload = req.body as z.infer<typeof updateUserSchema>;
 
+    const existingUser = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true, subCounty: true }
+    });
+
+    if (!existingUser) {
+      throw new HttpError(404, "User not found");
+    }
+
+    const targetRole = payload.role ?? existingUser.role;
+    const targetSubCounty = Object.prototype.hasOwnProperty.call(payload, "subCounty")
+      ? payload.subCounty
+      : existingUser.subCounty;
+
+    if (scopedRoles.has(targetRole)) {
+      if (!targetSubCounty) {
+        throw new HttpError(400, "Operational sub-county is required for this role");
+      }
+
+      if (!MIGORI_SUBCOUNTIES.includes(targetSubCounty as (typeof MIGORI_SUBCOUNTIES)[number])) {
+        throw new HttpError(400, "Select a valid Migori sub-county");
+      }
+    }
+
     const updateData: {
       name?: string;
       email?: string;
@@ -138,7 +198,7 @@ router.put(
       name: payload.name,
       email: payload.email?.toLowerCase(),
       role: payload.role,
-      subCounty: payload.subCounty,
+      subCounty: normalizeUserSubCounty(targetRole, targetSubCounty),
       isActive: payload.isActive
     };
 

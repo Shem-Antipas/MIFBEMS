@@ -8,4 +8,5 @@ export interface AuthUser {
 
 export interface TokenPayload extends AuthUser {
   type: "access" | "refresh";
+  tokenVersion: number;
 }

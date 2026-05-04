@@ -3,12 +3,35 @@ import { toast } from "sonner";
 import type { AxiosError } from "axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import DataTable from "@/components/shared/DataTable";
+import ExportButton from "@/components/shared/ExportButton";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import FarmerModal from "@/pages/farmers/FarmerModal";
 import { useAuthStore } from "@/store/authStore";
 import { useCreateFarmer, useFarmers } from "@/hooks/useFarmers";
 import { farmersApi } from "@/api/farmers";
+import type { ExcelColumn } from "@/lib/exportToExcel";
+import type { Farmer } from "@/types";
+
+const farmerExportColumns = [
+  { header: "Farmer ID", value: "farmerCode" },
+  { header: "Name", value: "name" },
+  { header: "ID No.", value: (farmer: Farmer) => farmer.idNumber ?? "" },
+  { header: "Phone Number", value: (farmer: Farmer) => farmer.phoneNumber ?? "" },
+  { header: "Email", value: (farmer: Farmer) => farmer.email ?? "" },
+  { header: "Sub-County", value: "subCounty" },
+  { header: "Ward", value: "ward" },
+  { header: "Production Unit", value: "farmType" },
+  { header: "Species", value: (farmer: Farmer) => farmer.species.join(", ") },
+  { header: "Production (Kg)", value: "productionKg" },
+  { header: "Number of Production Units", value: "numberOfPonds" },
+  { header: "Number Active", value: "activePonds" },
+  { header: "Number Inactive", value: "inactivePonds" },
+  { header: "Status", value: "status" },
+  { header: "Latitude", value: (farmer: Farmer) => farmer.latitude ?? "" },
+  { header: "Longitude", value: (farmer: Farmer) => farmer.longitude ?? "" },
+  { header: "Created At", value: (farmer: Farmer) => new Date(farmer.createdAt) }
+] satisfies Array<ExcelColumn<Farmer>>;
 
 const FarmersPage = () => {
   const [open, setOpen] = useState(false);
@@ -18,7 +41,7 @@ const FarmersPage = () => {
   const { data: farmers = [], isLoading, isError, error } = useFarmers();
   const createFarmer = useCreateFarmer();
   const updateFarmerStatus = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: "ACTIVE" | "INACTIVE" }) =>
+    mutationFn: ({ id, status }: { id: string; status: Farmer["status"] }) =>
       farmersApi.update(id, { status }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["farmers"] });
@@ -41,11 +64,19 @@ const FarmersPage = () => {
           <h1 className="text-xl font-semibold">Farmers Registry</h1>
           <p className="text-sm text-muted-foreground">Manage fish farmer records by sub-county.</p>
         </div>
-        {canCreate ? (
-          <Button type="button" onClick={() => setOpen(true)}>
-            Add Farmer
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <ExportButton
+            filename="farmers-registry"
+            sheetName="Farmers"
+            columns={farmerExportColumns}
+            rows={farmers}
+          />
+          {canCreate ? (
+            <Button type="button" onClick={() => setOpen(true)}>
+              Add Farmer
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {isError ? (
@@ -55,14 +86,37 @@ const FarmersPage = () => {
       ) : null}
 
       <DataTable
-        headers={["Name", "Sub-County", "Ward", "Type", "Species", "Production", "Status", "Actions"]}
+        headers={[
+          "Farmer ID",
+          "Name",
+          "ID No.",
+          "Phone",
+          "Email",
+          "Sub-County",
+          "Ward",
+          "Production Unit",
+          "Species",
+          "Production",
+          "Units",
+          "Active",
+          "Inactive",
+          "Status",
+          "Actions"
+        ]}
         rows={farmers.map((farmer) => [
+          farmer.farmerCode,
           farmer.name,
+          farmer.idNumber ?? "-",
+          farmer.phoneNumber ?? "-",
+          farmer.email ?? "-",
           farmer.subCounty,
           farmer.ward,
           farmer.farmType,
           farmer.species.join(", "),
           `${farmer.productionKg.toLocaleString()} kg`,
+          farmer.numberOfPonds.toLocaleString(),
+          farmer.activePonds.toLocaleString(),
+          farmer.inactivePonds.toLocaleString(),
           <StatusBadge key={farmer.id} status={farmer.status} />,
           canCreate ? (
             <Button

@@ -16,9 +16,35 @@ export interface LoginPayload {
   password: string;
 }
 
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+  resetUrl?: string;
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  password: string;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}
+
 export const authApi = {
   async login(payload: LoginPayload): Promise<AuthResponse> {
     const { data } = await authClient.post<AuthResponse>("/auth/login", payload);
+    return data;
+  },
+  async forgotPassword(payload: ForgotPasswordPayload): Promise<ForgotPasswordResponse> {
+    const { data } = await authClient.post<ForgotPasswordResponse>("/auth/forgot-password", payload);
+    return data;
+  },
+  async resetPassword(payload: ResetPasswordPayload): Promise<ResetPasswordResponse> {
+    const { data } = await authClient.post<ResetPasswordResponse>("/auth/reset-password", payload);
     return data;
   },
   async refresh(): Promise<AuthResponse> {

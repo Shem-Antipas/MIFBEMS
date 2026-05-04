@@ -3,11 +3,14 @@ export const getDashboardSummary = async (subCounty) => {
     const farmerWhere = subCounty ? { subCounty } : {};
     const projectWhere = subCounty ? { subCounty } : {};
     const inspectionWhere = subCounty ? { subCounty } : {};
+    const licenseScopeWhere = subCounty
+        ? { OR: [{ subCounty }, { farmer: { subCounty } }] }
+        : {};
     const [totalFarmers, totalProduction, activeLicenses, expiredLicenses, totalProjects, ongoingProjects, inspectionsThisYear] = await Promise.all([
         prisma.farmer.count({ where: farmerWhere }),
         prisma.farmer.aggregate({ where: farmerWhere, _sum: { productionKg: true } }),
-        prisma.license.count({ where: { status: "VALID", farmer: farmerWhere } }),
-        prisma.license.count({ where: { status: "EXPIRED", farmer: farmerWhere } }),
+        prisma.license.count({ where: { ...licenseScopeWhere, status: "VALID" } }),
+        prisma.license.count({ where: { ...licenseScopeWhere, status: "EXPIRED" } }),
         prisma.blueEconomyProject.count({ where: projectWhere }),
         prisma.blueEconomyProject.count({ where: { ...projectWhere, status: "ONGOING" } }),
         prisma.inspection.count({

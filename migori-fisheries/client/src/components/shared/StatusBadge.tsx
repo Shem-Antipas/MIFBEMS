@@ -9,9 +9,20 @@ interface StatusBadgeProps {
 const StatusBadge = ({ status }: StatusBadgeProps) => {
   const normalized = status.toUpperCase();
   const variant: ComponentProps<typeof Badge>["variant"] =
-    normalized === "ACTIVE" || normalized === "VALID" || normalized === "PASS" || normalized === "RESOLVED"
+    normalized === "ACTIVE" ||
+    normalized === "VALID" ||
+    normalized === "PASS" ||
+    normalized === "RESOLVED" ||
+    normalized === "COMPLETED"
       ? "success"
-      : normalized === "PENDING" || normalized === "PLANNED" || normalized === "ONGOING"
+      : normalized === "PENDING" ||
+          normalized === "PLANNED" ||
+          normalized === "ONGOING" ||
+          normalized === "IN PROGRESS" ||
+          normalized === "IN_PROGRESS" ||
+          normalized === "PARTIALLY ACTIVE" ||
+          normalized === "PARTIALLY_ACTIVE" ||
+          normalized === "STALLED"
         ? "warning"
         : "destructive";
 

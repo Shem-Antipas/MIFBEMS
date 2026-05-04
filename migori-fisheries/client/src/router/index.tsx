@@ -2,6 +2,8 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import PageLayout from "@/components/layout/PageLayout";
 import ProtectedRoute from "@/router/ProtectedRoute";
 import LoginPage from "@/pages/auth/LoginPage";
+import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
+import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import FarmersPage from "@/pages/farmers/FarmersPage";
 import LicensesPage from "@/pages/licenses/LicensesPage";
@@ -16,6 +18,7 @@ import BackupsPage from "@/pages/admin/BackupsPage";
 import MyFarmPage from "@/pages/farmer-portal/MyFarmPage";
 import AdvisoriesPage from "@/pages/farmer-portal/AdvisoriesPage";
 import QueriesPage from "@/pages/farmer-portal/QueriesPage";
+import { allRoles } from "@/router/permissions";
 
 const Unauthorized = () => (
   <div className="grid min-h-screen place-items-center bg-background p-6 text-center">
@@ -31,6 +34,8 @@ const AppRouter = () => {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
 
         <Route element={<ProtectedRoute />}>
@@ -65,6 +70,9 @@ const AppRouter = () => {
 
           <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "ADMIN"]} />}>
             <Route path="/users" element={<PageLayout><UsersPage /></PageLayout>} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={allRoles} />}>
             <Route path="/settings" element={<PageLayout><SettingsPage /></PageLayout>} />
           </Route>
 

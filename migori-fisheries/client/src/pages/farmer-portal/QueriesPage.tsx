@@ -2,13 +2,25 @@ import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import DataTable from "@/components/shared/DataTable";
+import ExportButton from "@/components/shared/ExportButton";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { queriesApi } from "@/api/queries";
+import type { ExcelColumn } from "@/lib/exportToExcel";
+import type { QueryRecord } from "@/types";
 
 interface QueryForm {
   subject: string;
   message: string;
 }
+
+const queryExportColumns = [
+  { header: "Subject", value: "subject" },
+  { header: "Message", value: "message" },
+  { header: "Status", value: "status" },
+  { header: "Reply", value: (query: QueryRecord) => query.reply ?? "" },
+  { header: "Created At", value: (query: QueryRecord) => new Date(query.createdAt) },
+  { header: "Updated At", value: (query: QueryRecord) => new Date(query.updatedAt) }
+] satisfies Array<ExcelColumn<QueryRecord>>;
 
 const QueriesPage = () => {
   const queryClient = useQueryClient();
@@ -33,10 +45,18 @@ const QueriesPage = () => {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-xl font-semibold">My Queries</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold">My Queries</h1>
+        <ExportButton
+          filename="queries"
+          sheetName="Queries"
+          columns={queryExportColumns}
+          rows={queries}
+        />
+      </div>
 
       <form
-        className="grid gap-3 rounded-xl border bg-white p-4 md:grid-cols-2"
+        className="grid gap-3 rounded-xl border bg-card p-4 md:grid-cols-2"
         onSubmit={handleSubmit((values) => createQuery.mutate(values))}
       >
         <input

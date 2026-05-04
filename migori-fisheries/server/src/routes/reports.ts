@@ -34,7 +34,8 @@ router.get(
       }),
       prisma.license.groupBy({
         by: ["status"],
-        _count: { id: true }
+        _count: { id: true },
+        where: subCounty ? { farmer: { subCounty } } : {}
       })
     ]);
 

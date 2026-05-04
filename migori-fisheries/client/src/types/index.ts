@@ -18,14 +18,21 @@ export interface AuthResponse {
 
 export interface Farmer {
   id: string;
+  farmerCode: string;
   name: string;
+  idNumber?: string | null;
+  phoneNumber?: string | null;
+  email?: string | null;
   subCounty: string;
   ward: string;
   farmType: "POND" | "CAGE" | "TANK" | "DAM";
   species: string[];
   licenseNo?: string | null;
-  status: "ACTIVE" | "INACTIVE" | "SUSPENDED";
+  status: "ACTIVE" | "INACTIVE" | "PARTIALLY_ACTIVE" | "SUSPENDED";
   productionKg: number;
+  numberOfPonds: number;
+  activePonds: number;
+  inactivePonds: number;
   latitude?: number | null;
   longitude?: number | null;
   registeredById: string;
@@ -38,8 +45,28 @@ export interface License {
   licenseNo: string;
   receiptNo?: string | null;
   bmuName?: string | null;
-  farmerId: string;
-  type: "FISHERMAN" | "FISH_TRADER" | "BOAT";
+  holderName?: string | null;
+  holderIdNumber?: string | null;
+  holderPhoneNumber?: string | null;
+  holderEmail?: string | null;
+  subCounty?: string | null;
+  ward?: string | null;
+  beachName?: string | null;
+  market?: string | null;
+  amountLicensed: number;
+  licensedById?: string | null;
+  licensedByName?: string | null;
+  farmerId?: string | null;
+  type:
+    | "FISH_DEPOT"
+    | "FISHERMAN"
+    | "FISH_TRADER"
+    | "BOAT_OWNER"
+    | "FISH_MOVEMENT_PERMIT"
+    | "BOAT_LICENSE"
+    | "NEW_BOARD_REGISTRATION"
+    | "ICE_PLANT"
+    | "BOAT";
   issuedDate: string;
   expiryDate: string;
   status: "PENDING" | "VALID" | "EXPIRED" | "REVOKED" | "REJECTED";
@@ -50,16 +77,27 @@ export interface License {
     id: string;
     name: string;
     subCounty: string;
+    ward?: string;
+    idNumber?: string | null;
+    phoneNumber?: string | null;
+    email?: string | null;
   };
 }
 
 export interface CaptureFisheriesRecord {
   id: string;
+  captureCode: string;
   fisherName: string;
+  idNumber?: string | null;
+  phoneNumber?: string | null;
   bmuName?: string | null;
   landingSite?: string | null;
+  ward: string;
   species: string;
   catchKg: number;
+  value: number;
+  month?: number | null;
+  year?: number | null;
   effortHours?: number | null;
   fishingDate: string;
   subCounty: "Nyatike";
@@ -80,11 +118,20 @@ export interface Inspection {
 
 export interface BlueEconomyProject {
   id: string;
+  projectCode: string;
+  category: "BLUE_ECONOMY" | "LAKEFRONT_DEVELOPMENT" | "AQUACULTURE_DEVELOPMENT";
   name: string;
+  description: string;
   subCounty: string;
+  ward: string;
+  latitude?: number | null;
+  longitude?: number | null;
   budget: number;
   funder: string;
-  status: "PLANNED" | "ONGOING" | "COMPLETED" | "CANCELLED";
+  status: "PENDING" | "IN_PROGRESS" | "STALLED" | "PLANNED" | "ONGOING" | "COMPLETED" | "CANCELLED";
+  photos: string[];
+  responsibleOfficerId?: string | null;
+  responsibleOfficerName?: string | null;
   startDate: string;
   endDate?: string | null;
   createdAt: string;

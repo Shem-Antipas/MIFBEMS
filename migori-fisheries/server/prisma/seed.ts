@@ -94,6 +94,9 @@ async function main(): Promise<void> {
         species: ["Tilapia", "Catfish"],
         status: FarmerStatus.ACTIVE,
         productionKg: 1200,
+        numberOfPonds: 6,
+        activePonds: 5,
+        inactivePonds: 1,
         latitude: -1.5504,
         longitude: 34.2167,
         registeredById: officer.id
@@ -108,6 +111,9 @@ async function main(): Promise<void> {
         species: ["Tilapia"],
         status: FarmerStatus.ACTIVE,
         productionKg: 2400,
+        numberOfPonds: 0,
+        activePonds: 0,
+        inactivePonds: 0,
         latitude: -1.071,
         longitude: 34.474,
         registeredById: officer.id
@@ -122,6 +128,9 @@ async function main(): Promise<void> {
         species: ["Catfish"],
         status: FarmerStatus.ACTIVE,
         productionKg: 1600,
+        numberOfPonds: 0,
+        activePonds: 0,
+        inactivePonds: 0,
         latitude: -1.169,
         longitude: 34.311,
         registeredById: director.id
@@ -136,6 +145,9 @@ async function main(): Promise<void> {
         species: ["Tilapia", "Nile Perch"],
         status: FarmerStatus.SUSPENDED,
         productionKg: 800,
+        numberOfPonds: 0,
+        activePonds: 0,
+        inactivePonds: 0,
         latitude: -0.784,
         longitude: 34.482,
         registeredById: director.id
@@ -150,6 +162,9 @@ async function main(): Promise<void> {
         species: ["Tilapia"],
         status: FarmerStatus.ACTIVE,
         productionKg: 980,
+        numberOfPonds: 5,
+        activePonds: 3,
+        inactivePonds: 2,
         latitude: -1.041,
         longitude: 34.644,
         registeredById: director.id
@@ -164,6 +179,9 @@ async function main(): Promise<void> {
         species: ["Catfish", "Tilapia"],
         status: FarmerStatus.INACTIVE,
         productionKg: 430,
+        numberOfPonds: 0,
+        activePonds: 0,
+        inactivePonds: 0,
         latitude: -1.127,
         longitude: 34.515,
         registeredById: director.id

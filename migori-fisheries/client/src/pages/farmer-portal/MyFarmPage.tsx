@@ -11,12 +11,20 @@ const MyFarmPage = () => {
     <section className="space-y-4">
       <h1 className="text-xl font-semibold">My Farm</h1>
       {farm ? (
-        <div className="rounded-xl border bg-white p-4 text-sm">
+        <div className="rounded-xl border bg-card p-4 text-sm">
+          <p><strong>Farmer ID:</strong> {farm.farmerCode}</p>
           <p><strong>Name:</strong> {farm.name}</p>
           <p><strong>Sub-County:</strong> {farm.subCounty}</p>
           <p><strong>Ward:</strong> {farm.ward}</p>
           <p><strong>Farm Type:</strong> {farm.farmType}</p>
           <p><strong>Production:</strong> {farm.productionKg.toLocaleString()} kg</p>
+          {farm.farmType === "POND" ? (
+            <>
+              <p><strong>Ponds:</strong> {farm.numberOfPonds.toLocaleString()}</p>
+              <p><strong>Active Ponds:</strong> {farm.activePonds.toLocaleString()}</p>
+              <p><strong>Inactive Ponds:</strong> {farm.inactivePonds.toLocaleString()}</p>
+            </>
+          ) : null}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">No linked farm record found.</p>
