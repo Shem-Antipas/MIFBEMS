@@ -4,6 +4,7 @@ import type { AxiosError } from "axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import DataTable from "@/components/shared/DataTable";
 import StatusBadge from "@/components/shared/StatusBadge";
+import { Button } from "@/components/ui/button";
 import FarmerModal from "@/pages/farmers/FarmerModal";
 import { useAuthStore } from "@/store/authStore";
 import { useCreateFarmer, useFarmers } from "@/hooks/useFarmers";
@@ -17,7 +18,7 @@ const FarmersPage = () => {
   const { data: farmers = [], isLoading, isError, error } = useFarmers();
   const createFarmer = useCreateFarmer();
   const updateFarmerStatus = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: "ACTIVE" | "SUSPENDED" }) =>
+    mutationFn: ({ id, status }: { id: string; status: "ACTIVE" | "INACTIVE" }) =>
       farmersApi.update(id, { status }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["farmers"] });
@@ -26,6 +27,7 @@ const FarmersPage = () => {
   });
 
   const canCreate = userRole === "DIRECTOR" || userRole === "FISHERIES_OFFICER";
+  const canRecordLicense = userRole === "FISHERIES_OFFICER";
 
   const errorMessage =
     (error as AxiosError<{ error?: string }> | null)?.response?.data?.error ??
@@ -40,9 +42,9 @@ const FarmersPage = () => {
           <p className="text-sm text-muted-foreground">Manage fish farmer records by sub-county.</p>
         </div>
         {canCreate ? (
-          <button onClick={() => setOpen(true)} className="rounded-lg bg-primary px-3 py-2 text-sm text-white">
+          <Button type="button" onClick={() => setOpen(true)}>
             Add Farmer
-          </button>
+          </Button>
         ) : null}
       </div>
 
@@ -63,14 +65,16 @@ const FarmersPage = () => {
           `${farmer.productionKg.toLocaleString()} kg`,
           <StatusBadge key={farmer.id} status={farmer.status} />,
           canCreate ? (
-            <button
-              className="rounded-md border px-2 py-1 text-xs"
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               disabled={updateFarmerStatus.isPending}
               onClick={async () => {
-                const nextStatus = farmer.status === "SUSPENDED" ? "ACTIVE" : "SUSPENDED";
+                const nextStatus = farmer.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
                 try {
                   await updateFarmerStatus.mutateAsync({ id: farmer.id, status: nextStatus });
-                  toast.success(`Farmer ${nextStatus === "SUSPENDED" ? "suspended" : "reactivated"} successfully`);
+                  toast.success(`Farmer marked ${nextStatus.toLowerCase()} successfully`);
                 } catch (mutationError) {
                   const message =
                     (mutationError as AxiosError<{ error?: string }>).response?.data?.error ??
@@ -79,8 +83,8 @@ const FarmersPage = () => {
                 }
               }}
             >
-              {farmer.status === "SUSPENDED" ? "Activate" : "Suspend"}
-            </button>
+              {farmer.status === "ACTIVE" ? "Mark inactive" : "Mark active"}
+            </Button>
           ) : (
             "-"
           )
@@ -92,10 +96,18 @@ const FarmersPage = () => {
         open={open}
         onClose={() => setOpen(false)}
         isSubmitting={createFarmer.isPending}
+        canRecordLicense={canRecordLicense}
         onSubmit={async (payload) => {
-          await createFarmer.mutateAsync(payload);
-          toast.success("Farmer created successfully");
-          setOpen(false);
+          try {
+            await createFarmer.mutateAsync(payload);
+            toast.success("Farmer created successfully");
+            setOpen(false);
+          } catch (mutationError) {
+            const message =
+              (mutationError as AxiosError<{ error?: string }>).response?.data?.error ??
+              "Failed to create farmer.";
+            toast.error(message);
+          }
         }}
       />
     </section>

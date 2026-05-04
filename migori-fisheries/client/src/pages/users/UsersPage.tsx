@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import type { AxiosError } from "axios";
 import { toast } from "sonner";
 import DataTable from "@/components/shared/DataTable";
@@ -7,6 +7,7 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import { usersApi } from "@/api/users";
 import { useAuthStore } from "@/store/authStore";
 import { MIGORI_SUBCOUNTIES } from "@/lib/locationData";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Role } from "@/types";
 
@@ -30,7 +31,7 @@ const UsersPage = () => {
     queryFn: usersApi.list
   });
 
-  const { register, handleSubmit, reset, watch } = useForm<UserForm>({
+  const { register, handleSubmit, reset, control } = useForm<UserForm>({
     defaultValues: {
       name: "",
       email: "",
@@ -40,7 +41,7 @@ const UsersPage = () => {
     }
   });
 
-  const selectedRole = watch("role");
+  const selectedRole = useWatch({ control, name: "role" });
 
   const createUser = useMutation({
     mutationFn: usersApi.create,
@@ -62,7 +63,7 @@ const UsersPage = () => {
 
       {canManageUsers ? (
         <form
-          className="grid gap-3 rounded-xl border bg-white p-4 md:grid-cols-3"
+          className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-3"
           onSubmit={handleSubmit(async (values) => {
             try {
               await createUser.mutateAsync({
@@ -93,7 +94,7 @@ const UsersPage = () => {
           <Input type="email" placeholder="Email" {...register("email", { required: true })} />
           <Input type="password" placeholder="Temporary password" {...register("password", { required: true })} />
 
-          <select className="rounded-lg border px-3 py-2 text-sm" {...register("role", { required: true })}>
+          <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("role", { required: true })}>
             {roles.map((role) => (
               <option key={role} value={role}>
                 {role}
@@ -102,7 +103,7 @@ const UsersPage = () => {
           </select>
 
           {selectedRole === "FISHERIES_OFFICER" || selectedRole === "FARMER" ? (
-            <select className="rounded-lg border px-3 py-2 text-sm" {...register("subCounty", { required: true })}>
+            <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("subCounty", { required: true })}>
               {MIGORI_SUBCOUNTIES.map((subCounty) => (
                 <option key={subCounty} value={subCounty}>
                   {subCounty}
@@ -114,9 +115,9 @@ const UsersPage = () => {
           )}
 
           <div className="md:col-span-3 flex justify-end">
-            <button className="rounded-lg bg-primary px-4 py-2 text-sm text-white" type="submit" disabled={createUser.isPending}>
+            <Button type="submit" disabled={createUser.isPending}>
               {createUser.isPending ? "Saving..." : "Add User"}
-            </button>
+            </Button>
           </div>
         </form>
       ) : null}
@@ -130,8 +131,10 @@ const UsersPage = () => {
           user.subCounty ?? "All",
           <StatusBadge key={user.id} status={user.isActive ? "ACTIVE" : "INACTIVE"} />,
           canManageUsers && user.isActive && user.id !== currentUser?.id ? (
-            <button
-              className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-700"
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
               disabled={deactivateUser.isPending}
               onClick={async () => {
                 try {
@@ -146,7 +149,7 @@ const UsersPage = () => {
               }}
             >
               Deactivate
-            </button>
+            </Button>
           ) : (
             "-"
           )

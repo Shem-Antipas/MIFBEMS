@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
 interface DataTableProps {
   headers: string[];
   rows: Array<Array<ReactNode>>;
@@ -8,37 +10,37 @@ interface DataTableProps {
 
 const DataTable = ({ headers, rows, emptyLabel = "No records available." }: DataTableProps) => {
   return (
-    <div className="overflow-hidden rounded-xl border bg-white">
-      <table className="min-w-full divide-y divide-border">
-        <thead className="bg-muted/50">
-          <tr>
+    <div className="overflow-hidden rounded-lg border bg-card">
+      <Table>
+        <TableHeader className="bg-muted/50">
+          <TableRow>
             {headers.map((header) => (
-              <th key={header} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <TableHead key={header}>
                 {header}
-              </th>
+              </TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border bg-white text-sm">
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.length > 0 ? (
             rows.map((row, index) => (
-              <tr key={`row-${index}`}>
+              <TableRow key={`row-${index}`}>
                 {row.map((cell, cellIndex) => (
-                  <td key={`cell-${index}-${cellIndex}`} className="px-4 py-3 text-foreground">
+                  <TableCell key={`cell-${index}-${cellIndex}`} className="text-foreground">
                     {cell}
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))
           ) : (
-            <tr>
-              <td colSpan={headers.length} className="px-4 py-8 text-center text-sm text-muted-foreground">
+            <TableRow>
+              <TableCell colSpan={headers.length} className="h-24 text-center text-muted-foreground">
                 {emptyLabel}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           )}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 };

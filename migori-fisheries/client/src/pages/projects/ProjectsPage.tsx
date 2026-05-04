@@ -8,9 +8,11 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import { projectsApi, type CreateProjectPayload } from "@/api/projects";
 import { useAuthStore } from "@/store/authStore";
 import { MIGORI_SUBCOUNTIES } from "@/lib/locationData";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 type ProjectStatus = "PLANNED" | "ONGOING" | "COMPLETED" | "CANCELLED";
+const projectStatusOptions: ProjectStatus[] = ["PLANNED", "ONGOING", "COMPLETED", "CANCELLED"];
 
 type ProjectForm = {
   name: string;
@@ -62,7 +64,6 @@ const ProjectsPage = () => {
     }
   });
 
-  const projectStatusOptions: ProjectStatus[] = ["PLANNED", "ONGOING", "COMPLETED", "CANCELLED"];
   const [statusDrafts, setStatusDrafts] = useState<Record<string, ProjectStatus>>({});
 
   const rows = useMemo(
@@ -94,8 +95,10 @@ const ProjectsPage = () => {
                   </option>
                 ))}
               </select>
-              <button
-                className="rounded-md border px-2 py-1 text-xs"
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
                 disabled={updateProject.isPending || selectedStatus === project.status}
                 onClick={async () => {
                   try {
@@ -110,7 +113,7 @@ const ProjectsPage = () => {
                 }}
               >
                 Save
-              </button>
+              </Button>
             </div>
           ) : (
             "-"
@@ -126,7 +129,7 @@ const ProjectsPage = () => {
 
       {canCreateProject ? (
         <form
-          className="grid gap-3 rounded-xl border bg-white p-4 md:grid-cols-3"
+          className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-3"
           onSubmit={handleSubmit(async (values) => {
             try {
               await createProject.mutateAsync({
@@ -157,7 +160,7 @@ const ProjectsPage = () => {
           })}
         >
           <Input placeholder="Project name" {...register("name", { required: true })} />
-          <select className="rounded-lg border px-3 py-2 text-sm" {...register("subCounty", { required: true })}>
+          <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("subCounty", { required: true })}>
             {MIGORI_SUBCOUNTIES.map((subCounty) => (
               <option key={subCounty} value={subCounty}>
                 {subCounty}
@@ -166,7 +169,7 @@ const ProjectsPage = () => {
           </select>
           <Input type="number" step="0.1" placeholder="Budget (KES)" {...register("budget", { valueAsNumber: true })} />
           <Input placeholder="Funder" {...register("funder", { required: true })} />
-          <select className="rounded-lg border px-3 py-2 text-sm" {...register("status")}>
+          <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("status")}>
             {projectStatusOptions.map((status) => (
               <option key={status} value={status}>
                 {status}
@@ -176,9 +179,9 @@ const ProjectsPage = () => {
           <Input type="date" {...register("startDate", { required: true })} />
           <Input type="date" {...register("endDate")} />
           <div className="md:col-span-3 flex justify-end">
-            <button className="rounded-lg bg-primary px-4 py-2 text-sm text-white" disabled={createProject.isPending} type="submit">
+            <Button disabled={createProject.isPending} type="submit">
               {createProject.isPending ? "Saving..." : "Add Project"}
-            </button>
+            </Button>
           </div>
         </form>
       ) : null}

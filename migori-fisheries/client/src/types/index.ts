@@ -36,17 +36,35 @@ export interface Farmer {
 export interface License {
   id: string;
   licenseNo: string;
+  receiptNo?: string | null;
+  bmuName?: string | null;
   farmerId: string;
-  type: "AQUACULTURE" | "COMMERCIAL_FISHING" | "ARTISANAL_FISHING";
+  type: "FISHERMAN" | "FISH_TRADER" | "BOAT";
   issuedDate: string;
   expiryDate: string;
-  status: "VALID" | "EXPIRED" | "REVOKED";
+  status: "PENDING" | "VALID" | "EXPIRED" | "REVOKED" | "REJECTED";
+  approvedById?: string | null;
+  approvedAt?: string | null;
   createdAt: string;
   farmer?: {
     id: string;
     name: string;
     subCounty: string;
   };
+}
+
+export interface CaptureFisheriesRecord {
+  id: string;
+  fisherName: string;
+  bmuName?: string | null;
+  landingSite?: string | null;
+  species: string;
+  catchKg: number;
+  effortHours?: number | null;
+  fishingDate: string;
+  subCounty: "Nyatike";
+  recordedById: string;
+  createdAt: string;
 }
 
 export interface Inspection {

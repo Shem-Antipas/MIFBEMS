@@ -26,10 +26,11 @@ const createFarmerSchema = z.object({
   initialLicense: z
     .object({
       licenseNo: z.string().min(4),
+      receiptNo: z.string().min(2),
+      bmuName: z.string().min(2).optional(),
       type: z.enum(LicenseType),
       issuedDate: z.coerce.date(),
-      expiryDate: z.coerce.date(),
-      status: z.enum(LicenseStatus).optional()
+      expiryDate: z.coerce.date()
     })
     .optional()
 }).superRefine((value, ctx) => {
@@ -140,10 +141,14 @@ router.post(
       });
 
       if (initialLicense) {
+        if (req.user.role !== "FISHERIES_OFFICER") {
+          throw new HttpError(403, "Only extension officers can record license and receipt information");
+        }
+
         await tx.license.create({
           data: {
             ...initialLicense,
-            status: initialLicense.status ?? LicenseStatus.VALID,
+            status: LicenseStatus.PENDING,
             farmerId: created.id
           }
         });

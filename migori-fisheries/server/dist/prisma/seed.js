@@ -9,6 +9,7 @@ async function main() {
     await prisma.auditLog.deleteMany();
     await prisma.license.deleteMany();
     await prisma.productionRecord.deleteMany();
+    await prisma.captureFisheriesRecord.deleteMany();
     await prisma.inspection.deleteMany();
     await prisma.query.deleteMany();
     await prisma.advisory.deleteMany();
@@ -261,55 +262,91 @@ async function main() {
         data: [
             {
                 licenseNo: "MIG-LIC-0001",
+                receiptNo: "RCT-0001",
+                bmuName: "Muhuru Bay BMU",
                 farmerId: farmers[0].id,
-                type: LicenseType.AQUACULTURE,
+                type: LicenseType.FISHERMAN,
                 issuedDate: makeDate("2025-01-01"),
                 expiryDate: makeDate("2026-01-01"),
                 status: LicenseStatus.EXPIRED
             },
             {
                 licenseNo: "MIG-LIC-0002",
+                receiptNo: "RCT-0002",
+                bmuName: "Suna East BMU",
                 farmerId: farmers[1].id,
-                type: LicenseType.AQUACULTURE,
+                type: LicenseType.BOAT,
                 issuedDate: makeDate("2026-01-15"),
                 expiryDate: makeDate("2027-01-15"),
                 status: LicenseStatus.VALID
             },
             {
                 licenseNo: "MIG-LIC-0003",
+                receiptNo: "RCT-0003",
+                bmuName: "Suna West BMU",
                 farmerId: farmers[2].id,
-                type: LicenseType.COMMERCIAL_FISHING,
+                type: LicenseType.FISH_TRADER,
                 issuedDate: makeDate("2025-05-03"),
                 expiryDate: makeDate("2026-05-03"),
                 status: LicenseStatus.VALID
             },
             {
                 licenseNo: "MIG-LIC-0004",
+                receiptNo: "RCT-0004",
+                bmuName: "Uriri BMU",
                 farmerId: farmers[3].id,
-                type: LicenseType.ARTISANAL_FISHING,
+                type: LicenseType.FISHERMAN,
                 issuedDate: makeDate("2024-06-10"),
                 expiryDate: makeDate("2025-06-10"),
                 status: LicenseStatus.EXPIRED
             },
             {
                 licenseNo: "MIG-LIC-0005",
+                receiptNo: "RCT-0005",
+                bmuName: "Kuria East BMU",
                 farmerId: farmers[4].id,
-                type: LicenseType.AQUACULTURE,
+                type: LicenseType.BOAT,
                 issuedDate: makeDate("2026-02-01"),
                 expiryDate: makeDate("2027-02-01"),
                 status: LicenseStatus.VALID
             },
             {
                 licenseNo: "MIG-LIC-0006",
+                receiptNo: "RCT-0006",
+                bmuName: "Kuria West BMU",
                 farmerId: farmers[5].id,
-                type: LicenseType.COMMERCIAL_FISHING,
+                type: LicenseType.FISH_TRADER,
                 issuedDate: makeDate("2025-09-10"),
                 expiryDate: makeDate("2026-09-10"),
                 status: LicenseStatus.VALID
             }
         ]
     });
-    console.log("Seed complete: users, farmers, licenses, projects, inspections, advisories, and queries created.");
+    await prisma.captureFisheriesRecord.createMany({
+        data: [
+            {
+                fisherName: "Peter Achieng",
+                bmuName: "Muhuru Bay BMU",
+                landingSite: "Muhuru Bay",
+                species: "Tilapia",
+                catchKg: 128,
+                effortHours: 7,
+                fishingDate: makeDate("2026-04-05"),
+                recordedById: officer.id
+            },
+            {
+                fisherName: "Omondi Were",
+                bmuName: "Sori BMU",
+                landingSite: "Sori",
+                species: "Nile Perch",
+                catchKg: 86,
+                effortHours: 6,
+                fishingDate: makeDate("2026-04-08"),
+                recordedById: officer.id
+            }
+        ]
+    });
+    console.log("Seed complete: users, farmers, licenses, capture fisheries, projects, inspections, advisories, and queries created.");
 }
 main()
     .catch((error) => {

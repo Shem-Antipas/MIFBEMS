@@ -9,10 +9,13 @@ const Sidebar = () => {
   const items = navItems.filter((item) => (role ? item.allowedRoles.includes(role) : false));
 
   return (
-    <aside className="hidden min-h-screen w-64 border-r bg-white/80 px-4 py-6 lg:block">
-      <div className="mb-8 px-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">MiFBEMS</p>
-        <h1 className="mt-2 text-lg font-bold text-foreground">Migori Fisheries</h1>
+    <aside className="hidden min-h-screen w-64 border-r bg-card/90 px-4 py-6 lg:block">
+      <div className="mb-8 flex items-center gap-3 px-2">
+        <img src="/migori-county-logo.png" alt="Migori County Government" className="h-12 w-12 shrink-0" />
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">MiFBeDAS</p>
+          <h1 className="mt-1 text-base font-bold leading-tight text-foreground">Migori Fisheries & Blue Economy</h1>
+        </div>
       </div>
       <nav className="space-y-1">
         {items.map((item) => (

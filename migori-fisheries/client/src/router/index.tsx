@@ -5,6 +5,7 @@ import LoginPage from "@/pages/auth/LoginPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import FarmersPage from "@/pages/farmers/FarmersPage";
 import LicensesPage from "@/pages/licenses/LicensesPage";
+import CaptureFisheriesPage from "@/pages/capture-fisheries/CaptureFisheriesPage";
 import ProjectsPage from "@/pages/projects/ProjectsPage";
 import InspectionsPage from "@/pages/inspections/InspectionsPage";
 import ReportsPage from "@/pages/reports/ReportsPage";
@@ -18,7 +19,7 @@ import QueriesPage from "@/pages/farmer-portal/QueriesPage";
 
 const Unauthorized = () => (
   <div className="grid min-h-screen place-items-center bg-background p-6 text-center">
-    <div className="rounded-xl border bg-white p-8">
+    <div className="rounded-xl border bg-card p-8">
       <h1 className="text-2xl font-semibold">Unauthorized</h1>
       <p className="mt-2 text-sm text-muted-foreground">You do not have access to this page.</p>
     </div>
@@ -48,9 +49,13 @@ const AppRouter = () => {
 
           <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"]} />}>
             <Route path="/farmers" element={<PageLayout><FarmersPage /></PageLayout>} />
-            <Route path="/licenses" element={<PageLayout><LicensesPage /></PageLayout>} />
+            <Route path="/capture-fisheries" element={<PageLayout><CaptureFisheriesPage /></PageLayout>} />
             <Route path="/projects" element={<PageLayout><ProjectsPage /></PageLayout>} />
             <Route path="/inspections" element={<PageLayout><InspectionsPage /></PageLayout>} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "ADMIN"]} />}>
+            <Route path="/licenses" element={<PageLayout><LicensesPage /></PageLayout>} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "DATA_ANALYST"]} />}>

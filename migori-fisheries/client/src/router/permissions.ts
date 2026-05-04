@@ -9,7 +9,8 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   { label: "Dashboard", path: "/dashboard", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"] },
   { label: "Farmers", path: "/farmers", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"] },
-  { label: "Licenses", path: "/licenses", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"] },
+  { label: "Licenses", path: "/licenses", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "ADMIN"] },
+  { label: "Capture Fisheries", path: "/capture-fisheries", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"] },
   { label: "Projects", path: "/projects", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"] },
   { label: "Inspections", path: "/inspections", allowedRoles: ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"] },
   { label: "Reports", path: "/reports", allowedRoles: ["DIRECTOR", "DATA_ANALYST"] },

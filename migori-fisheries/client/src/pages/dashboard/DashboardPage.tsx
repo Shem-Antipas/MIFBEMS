@@ -68,7 +68,43 @@ const DashboardPage = () => {
         <StatCard label="Ongoing Projects" value={summaryData?.summary.ongoingProjects ?? fallbackOngoingProjects} />
       </div>
 
-      <div className="rounded-xl border bg-white p-[18px]">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <article className="overflow-hidden rounded-lg border bg-card">
+          <img
+            src="/images/blue-economy/lake-victoria-fishing-login.jpg"
+            alt="Fishing boats and Lake Victoria blue economy activity"
+            className="aspect-[16/8] w-full object-cover"
+          />
+          <div className="p-4">
+            <h2 className="text-base font-semibold">Lake Fisheries Operations</h2>
+            <p className="mt-1 text-sm text-muted-foreground">BMU activity, licensing, boats, and fisherman records.</p>
+          </div>
+        </article>
+        <article className="overflow-hidden rounded-lg border bg-card">
+          <img
+            src="/images/blue-economy/small-scale-aquaculture-kenya-card.jpg"
+            alt="Aquaculture ponds and cage fish farming"
+            className="aspect-[16/8] w-full object-cover"
+          />
+          <div className="p-4">
+            <h2 className="text-base font-semibold">Aquaculture & Data Collection</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Production, capture fisheries, and analytics across Migori.</p>
+          </div>
+        </article>
+        <article className="overflow-hidden rounded-lg border bg-card">
+          <img
+            src="/images/blue-economy/catfish-ponds-kenya-card.jpg"
+            alt="Fish ponds supporting aquaculture extension services"
+            className="aspect-[16/8] w-full object-cover"
+          />
+          <div className="p-4">
+            <h2 className="text-base font-semibold">Fish Ponds & Extension</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Farm status, inspections, production tracking, and officer support.</p>
+          </div>
+        </article>
+      </div>
+
+      <div className="rounded-xl border bg-card p-[18px]">
         <h2 className="mb-3 text-base font-semibold">Migori County Geospatial Insights</h2>
         <MigoriMap
           role={user?.role ?? "DATA_ANALYST"}

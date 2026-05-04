@@ -11,20 +11,24 @@ const router = Router();
 const idParamSchema = z.object({ id: z.string().min(5) });
 const createLicenseSchema = z.object({
     licenseNo: z.string().min(4),
+    receiptNo: z.string().min(2),
+    bmuName: z.string().min(2).optional(),
     farmerId: z.string().min(5),
     type: z.enum(LicenseType),
     issuedDate: z.coerce.date(),
-    expiryDate: z.coerce.date(),
-    status: z.enum(LicenseStatus).optional()
+    expiryDate: z.coerce.date()
 });
 const updateLicenseSchema = z.object({
+    licenseNo: z.string().min(4).optional(),
+    receiptNo: z.string().min(2).optional(),
+    bmuName: z.string().min(2).optional(),
     type: z.enum(LicenseType).optional(),
     issuedDate: z.coerce.date().optional(),
     expiryDate: z.coerce.date().optional(),
     status: z.enum(LicenseStatus).optional()
 });
 router.use(authenticate);
-router.get("/", authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER"]), asyncHandler(async (req, res) => {
+router.get("/", authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER", "ADMIN"]), asyncHandler(async (req, res) => {
     if (!req.user) {
         throw new HttpError(401, "Unauthorized");
     }
@@ -40,7 +44,7 @@ router.get("/", authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "FAR
     });
     res.status(200).json({ data: licenses });
 }));
-router.post("/", validate({ body: createLicenseSchema }), authorize(["DIRECTOR", "FISHERIES_OFFICER"]), auditLog("LICENSE"), asyncHandler(async (req, res) => {
+router.post("/", validate({ body: createLicenseSchema }), authorize(["FISHERIES_OFFICER"]), auditLog("LICENSE"), asyncHandler(async (req, res) => {
     const payload = req.body;
     const farmer = await prisma.farmer.findUnique({ where: { id: payload.farmerId } });
     if (!farmer) {
@@ -52,10 +56,15 @@ router.post("/", validate({ body: createLicenseSchema }), authorize(["DIRECTOR",
     if (payload.expiryDate <= payload.issuedDate) {
         throw new HttpError(400, "Expiry date must be later than issued date");
     }
-    const license = await prisma.license.create({ data: payload });
+    const license = await prisma.license.create({
+        data: {
+            ...payload,
+            status: LicenseStatus.PENDING
+        }
+    });
     res.status(201).json({ data: license });
 }));
-router.put("/:id", validate({ params: idParamSchema, body: updateLicenseSchema }), authorize(["DIRECTOR", "FISHERIES_OFFICER"]), auditLog("LICENSE"), asyncHandler(async (req, res) => {
+router.put("/:id", validate({ params: idParamSchema, body: updateLicenseSchema }), authorize(["DIRECTOR", "FISHERIES_OFFICER", "ADMIN"]), auditLog("LICENSE"), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const license = await prisma.license.findUnique({
         where: { id },
@@ -68,13 +77,32 @@ router.put("/:id", validate({ params: idParamSchema, body: updateLicenseSchema }
         throw new HttpError(403, "You can only update licenses in your sub-county");
     }
     const payload = req.body;
+    const isApprovalChange = payload.status !== undefined;
+    const canApprove = req.user?.role === "DIRECTOR" || req.user?.role === "ADMIN";
+    if (isApprovalChange && !canApprove) {
+        throw new HttpError(403, "Only the Director or Admin can approve or reject licenses");
+    }
+    if (req.user?.role === "FISHERIES_OFFICER" && license.status !== LicenseStatus.PENDING) {
+        throw new HttpError(403, "Approved, rejected, expired, or revoked licenses cannot be edited by extension officers");
+    }
+    if ((payload.issuedDate ?? license.issuedDate) >= (payload.expiryDate ?? license.expiryDate)) {
+        throw new HttpError(400, "Expiry date must be later than issued date");
+    }
     const updated = await prisma.license.update({
         where: { id },
-        data: payload
+        data: {
+            ...payload,
+            approvedById: payload.status === LicenseStatus.VALID || payload.status === LicenseStatus.REJECTED
+                ? req.user?.id
+                : undefined,
+            approvedAt: payload.status === LicenseStatus.VALID || payload.status === LicenseStatus.REJECTED
+                ? new Date()
+                : undefined
+        }
     });
     res.status(200).json({ data: updated });
 }));
-router.delete("/:id", validate({ params: idParamSchema }), authorize(["DIRECTOR"]), auditLog("LICENSE"), asyncHandler(async (req, res) => {
+router.delete("/:id", validate({ params: idParamSchema }), authorize(["DIRECTOR", "ADMIN"]), auditLog("LICENSE"), asyncHandler(async (req, res) => {
     const { id } = req.params;
     await prisma.license.delete({ where: { id } });
     res.status(204).send();

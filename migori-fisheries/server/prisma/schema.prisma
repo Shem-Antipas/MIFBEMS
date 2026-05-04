@@ -1,27 +1,29 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id           String       @id @default(cuid())
-  name         String
-  email        String       @unique
-  passwordHash String
-  role         Role
-  subCounty    String?
-  isActive     Boolean      @default(true)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  farmers      Farmer[]
-  inspections  Inspection[]
-  auditLogs    AuditLog[]
-  queries      Query[]
+  id                      String                   @id @default(cuid())
+  name                    String
+  email                   String                   @unique
+  passwordHash            String
+  role                    Role
+  subCounty               String?
+  isActive                Boolean                  @default(true)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  farmers                 Farmer[]
+  inspections             Inspection[]
+  auditLogs               AuditLog[]
+  queries                 Query[]
+  captureFisheriesRecords CaptureFisheriesRecord[]
 
   @@index([role])
   @@index([subCounty])
@@ -72,30 +74,36 @@ enum FarmerStatus {
 }
 
 model License {
-  id         String        @id @default(cuid())
-  licenseNo  String        @unique
-  farmerId   String
-  farmer     Farmer        @relation(fields: [farmerId], references: [id])
-  type       LicenseType
-  issuedDate DateTime
-  expiryDate DateTime
-  status     LicenseStatus @default(VALID)
-  createdAt  DateTime      @default(now())
+  id           String        @id @default(cuid())
+  licenseNo    String        @unique
+  receiptNo    String?       @unique
+  bmuName      String?
+  farmerId     String
+  farmer       Farmer        @relation(fields: [farmerId], references: [id])
+  type         LicenseType
+  issuedDate   DateTime
+  expiryDate   DateTime
+  status       LicenseStatus @default(PENDING)
+  approvedById String?
+  approvedAt   DateTime?
+  createdAt    DateTime      @default(now())
 
   @@index([farmerId])
   @@index([status])
 }
 
 enum LicenseType {
-  AQUACULTURE
-  COMMERCIAL_FISHING
-  ARTISANAL_FISHING
+  FISHERMAN
+  FISH_TRADER
+  BOAT
 }
 
 enum LicenseStatus {
+  PENDING
   VALID
   EXPIRED
   REVOKED
+  REJECTED
 }
 
 model ProductionRecord {
@@ -111,6 +119,25 @@ model ProductionRecord {
 
   @@index([farmerId])
   @@index([year, month])
+}
+
+model CaptureFisheriesRecord {
+  id           String   @id @default(cuid())
+  fisherName   String
+  bmuName      String?
+  landingSite  String?
+  species      String
+  catchKg      Float
+  effortHours  Float?
+  fishingDate  DateTime
+  subCounty    String   @default("Nyatike")
+  recordedById String
+  recordedBy   User     @relation(fields: [recordedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([subCounty])
+  @@index([fishingDate])
+  @@index([recordedById])
 }
 
 model Inspection {

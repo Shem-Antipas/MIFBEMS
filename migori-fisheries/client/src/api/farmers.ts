@@ -3,10 +3,11 @@ import type { Farmer } from "@/types";
 
 type InitialLicensePayload = {
   licenseNo: string;
-  type: "AQUACULTURE" | "COMMERCIAL_FISHING" | "ARTISANAL_FISHING";
+  receiptNo: string;
+  bmuName?: string;
+  type: "FISHERMAN" | "FISH_TRADER" | "BOAT";
   issuedDate: string;
   expiryDate: string;
-  status?: "VALID" | "EXPIRED" | "REVOKED";
 };
 
 export type CreateFarmerPayload = Omit<

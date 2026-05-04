@@ -16,6 +16,7 @@ import reportRoutes from "./routes/reports.js";
 import userRoutes from "./routes/users.js";
 import queryRoutes from "./routes/queries.js";
 import advisoryRoutes from "./routes/advisories.js";
+import captureFisheriesRoutes from "./routes/captureFisheries.js";
 const app = express();
 app.use(helmet({
     contentSecurityPolicy: {
@@ -54,7 +55,7 @@ const writeLimiter = rateLimit({
     message: { error: "Too many write requests. Please slow down." }
 });
 app.get("/health", (_req, res) => {
-    res.status(200).json({ status: "ok", service: "MiFBEMS API" });
+    res.status(200).json({ status: "ok", service: "MiFBeDAS API" });
 });
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1", writeLimiter);
@@ -66,6 +67,7 @@ app.use("/api/v1/reports", reportRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/queries", queryRoutes);
 app.use("/api/v1/advisories", advisoryRoutes);
+app.use("/api/v1/capture-fisheries", captureFisheriesRoutes);
 app.use((req, _res, next) => {
     const error = new Error(`Route not found: ${req.method} ${req.originalUrl}`);
     next(error);
@@ -99,5 +101,5 @@ const errorHandler = (error, req, res, _next) => {
 };
 app.use(errorHandler);
 app.listen(env.PORT, () => {
-    logger.info(`MiFBEMS server running on port ${env.PORT}`);
+    logger.info(`MiFBeDAS server running on port ${env.PORT}`);
 });

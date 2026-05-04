@@ -8,6 +8,8 @@
     "dev": "nodemon --watch src --ext ts --exec tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+    "db:check": "tsx scripts/checkDatabase.ts",
+    "farmer:create-check": "tsx scripts/checkFarmerCreate.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",

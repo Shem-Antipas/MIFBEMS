@@ -16,6 +16,7 @@ import reportRoutes from "./routes/reports.js";
 import userRoutes from "./routes/users.js";
 import queryRoutes from "./routes/queries.js";
 import advisoryRoutes from "./routes/advisories.js";
+import captureFisheriesRoutes from "./routes/captureFisheries.js";
 
 const app = express();
 
@@ -64,7 +65,7 @@ const writeLimiter = rateLimit({
 });
 
 app.get("/health", (_req: Request, res: Response) => {
-  res.status(200).json({ status: "ok", service: "MiFBEMS API" });
+  res.status(200).json({ status: "ok", service: "MiFBeDAS API" });
 });
 
 app.use("/api/v1/auth", authRoutes);
@@ -77,6 +78,7 @@ app.use("/api/v1/reports", reportRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/queries", queryRoutes);
 app.use("/api/v1/advisories", advisoryRoutes);
+app.use("/api/v1/capture-fisheries", captureFisheriesRoutes);
 
 app.use((req: Request, _res: Response, next: NextFunction) => {
   const error = new Error(`Route not found: ${req.method} ${req.originalUrl}`);
@@ -121,5 +123,5 @@ const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
 app.use(errorHandler);
 
 app.listen(env.PORT, () => {
-  logger.info(`MiFBEMS server running on port ${env.PORT}`);
+  logger.info(`MiFBeDAS server running on port ${env.PORT}`);
 });
