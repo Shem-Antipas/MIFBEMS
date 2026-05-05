@@ -4,7 +4,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
 import { Prisma } from "@prisma/client";
-import { env, allowedCorsOrigins } from "./lib/env.js";
+import { env, allowedCorsOrigins, normalizeOrigin } from "./lib/env.js";
 import { logger } from "./lib/logger.js";
 import { HttpError } from "./lib/http.js";
 import authRoutes from "./routes/auth.js";
@@ -42,13 +42,31 @@ app.use(
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedCorsOrigins.includes(origin)) {
+      if (!origin) {
         callback(null, true);
         return;
       }
-      callback(new Error("CORS policy violation"));
+
+      const requestOrigin = normalizeOrigin(origin);
+
+      if (allowedCorsOrigins.includes(requestOrigin)) {
+        callback(null, true);
+        return;
+      }
+
+      logger.warn({
+        message: "Rejected CORS origin",
+        origin: requestOrigin,
+        allowedCorsOrigins
+      });
+
+      callback(new HttpError(403, "CORS policy violation"));
     },
-    credentials: true
+    credentials: true,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+    optionsSuccessStatus: 200,
+    maxAge: 60 * 60 * 24
   })
 );
 

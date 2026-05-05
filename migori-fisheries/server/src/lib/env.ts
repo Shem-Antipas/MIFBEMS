@@ -3,6 +3,8 @@ import { z } from "zod";
 
 config();
 
+const normalizeOrigin = (origin: string): string => origin.trim().replace(/\/+$/, "").toLowerCase();
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
@@ -23,8 +25,10 @@ export const env = envSchema.parse(process.env);
 export const allowedCorsOrigins = Array.from(
   new Set(
     [
-      env.FRONTEND_ORIGIN,
-      ...(env.FRONTEND_ORIGINS?.split(",").map((origin) => origin.trim()).filter(Boolean) ?? [])
+      normalizeOrigin(env.FRONTEND_ORIGIN),
+      ...(env.FRONTEND_ORIGINS?.split(",").map((origin) => normalizeOrigin(origin)).filter(Boolean) ?? [])
     ]
   )
 );
+
+export { normalizeOrigin };
