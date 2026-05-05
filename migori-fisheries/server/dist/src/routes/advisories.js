@@ -18,7 +18,7 @@ const createAdvisorySchema = z.object({
 });
 const updateAdvisorySchema = createAdvisorySchema.partial();
 router.use(authenticate);
-router.get("/", authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER"]), asyncHandler(async (req, res) => {
+router.get("/", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER"]), asyncHandler(async (req, res) => {
     if (!req.user) {
         throw new HttpError(401, "Unauthorized");
     }
@@ -33,14 +33,14 @@ router.get("/", authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "FAR
     });
     res.status(200).json({ data: advisories });
 }));
-router.post("/", validate({ body: createAdvisorySchema }), authorize(["DIRECTOR", "FISHERIES_OFFICER"], {
+router.post("/", validate({ body: createAdvisorySchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
     resolveSubCounty: (req) => req.body.subCounty
 }), auditLog("ADVISORY"), asyncHandler(async (req, res) => {
     const payload = req.body;
     const advisory = await prisma.advisory.create({ data: payload });
     res.status(201).json({ data: advisory });
 }));
-router.put("/:id", validate({ params: idParamSchema, body: updateAdvisorySchema }), authorize(["DIRECTOR", "FISHERIES_OFFICER"], {
+router.put("/:id", validate({ params: idParamSchema, body: updateAdvisorySchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
     resolveSubCounty: (req) => req.body.subCounty
 }), auditLog("ADVISORY"), asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -58,7 +58,7 @@ router.put("/:id", validate({ params: idParamSchema, body: updateAdvisorySchema 
     });
     res.status(200).json({ data: advisory });
 }));
-router.delete("/:id", validate({ params: idParamSchema }), authorize(["DIRECTOR"]), auditLog("ADVISORY"), asyncHandler(async (req, res) => {
+router.delete("/:id", validate({ params: idParamSchema }), authorize(["DIRECTOR", "ADMIN"]), auditLog("ADVISORY"), asyncHandler(async (req, res) => {
     const { id } = req.params;
     await prisma.advisory.delete({ where: { id } });
     res.status(204).send();

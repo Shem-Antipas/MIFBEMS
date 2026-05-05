@@ -24,7 +24,7 @@ const createCaptureRecordSchema = z.object({
     fishingDate: z.coerce.date().optional()
 });
 router.use(authenticate);
-router.get("/", authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"]), asyncHandler(async (req, res) => {
+router.get("/", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST"]), asyncHandler(async (req, res) => {
     if (!req.user) {
         throw new HttpError(401, "Unauthorized");
     }

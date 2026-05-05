@@ -18,7 +18,7 @@ const createInspectionSchema = z.object({
 });
 const updateInspectionSchema = createInspectionSchema.partial();
 router.use(authenticate);
-router.get("/", authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"]), asyncHandler(async (req, res) => {
+router.get("/", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST"]), asyncHandler(async (req, res) => {
     const where = req.user?.role === "FISHERIES_OFFICER" ? { subCounty: req.user.subCounty ?? undefined } : {};
     const inspections = await prisma.inspection.findMany({
         where,
@@ -27,7 +27,7 @@ router.get("/", authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"]), as
     });
     res.status(200).json({ data: inspections });
 }));
-router.post("/", validate({ body: createInspectionSchema }), authorize(["DIRECTOR", "FISHERIES_OFFICER"], {
+router.post("/", validate({ body: createInspectionSchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
     resolveSubCounty: (req) => req.body.subCounty
 }), auditLog("INSPECTION"), asyncHandler(async (req, res) => {
     if (!req.user) {
@@ -42,7 +42,7 @@ router.post("/", validate({ body: createInspectionSchema }), authorize(["DIRECTO
     });
     res.status(201).json({ data: inspection });
 }));
-router.put("/:id", validate({ params: idParamSchema, body: updateInspectionSchema }), authorize(["DIRECTOR", "FISHERIES_OFFICER"], {
+router.put("/:id", validate({ params: idParamSchema, body: updateInspectionSchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
     resolveSubCounty: (req) => req.body.subCounty
 }), auditLog("INSPECTION"), asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -57,7 +57,7 @@ router.put("/:id", validate({ params: idParamSchema, body: updateInspectionSchem
     const updated = await prisma.inspection.update({ where: { id }, data: payload });
     res.status(200).json({ data: updated });
 }));
-router.delete("/:id", validate({ params: idParamSchema }), authorize(["DIRECTOR"]), auditLog("INSPECTION"), asyncHandler(async (req, res) => {
+router.delete("/:id", validate({ params: idParamSchema }), authorize(["DIRECTOR", "ADMIN"]), auditLog("INSPECTION"), asyncHandler(async (req, res) => {
     const { id } = req.params;
     await prisma.inspection.delete({ where: { id } });
     res.status(204).send();

@@ -201,6 +201,7 @@ enum InspectionResult {
 model BlueEconomyProject {
   id        String        @id @default(cuid())
   projectCode String      @unique @default(dbgenerated("('MIF-PRJ-'::text || lpad((nextval('\"BlueEconomyProject_projectCode_seq\"'::regclass))::text, 6, '0'::text))"))
+  budgetLine String?
   category  ProjectCategory @default(BLUE_ECONOMY)
   name      String
   description String      @default("")
@@ -209,6 +210,7 @@ model BlueEconomyProject {
   latitude  Float?
   longitude Float?
   budget    Float
+  completionPercent Float  @default(0)
   funder    String
   status    ProjectStatus @default(PLANNED)
   photos    String[]      @default([])
@@ -221,6 +223,7 @@ model BlueEconomyProject {
 
   @@index([subCounty])
   @@index([status])
+  @@index([budgetLine])
 }
 
 enum ProjectCategory {

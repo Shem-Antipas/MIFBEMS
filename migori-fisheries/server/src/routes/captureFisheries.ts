@@ -30,7 +30,7 @@ router.use(authenticate);
 
 router.get(
   "/",
-  authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"]),
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST"]),
   asyncHandler(async (req, res) => {
     if (!req.user) {
       throw new HttpError(401, "Unauthorized");

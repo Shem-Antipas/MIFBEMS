@@ -26,7 +26,7 @@ router.use(authenticate);
 
 router.get(
   "/",
-  authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"]),
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST"]),
   asyncHandler(async (req, res) => {
     const where = req.user?.role === "FISHERIES_OFFICER" ? { subCounty: req.user.subCounty ?? undefined } : {};
 
@@ -43,7 +43,7 @@ router.get(
 router.post(
   "/",
   validate({ body: createInspectionSchema }),
-  authorize(["DIRECTOR", "FISHERIES_OFFICER"], {
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
     resolveSubCounty: (req) => (req.body as z.infer<typeof createInspectionSchema>).subCounty
   }),
   auditLog("INSPECTION"),
@@ -68,7 +68,7 @@ router.post(
 router.put(
   "/:id",
   validate({ params: idParamSchema, body: updateInspectionSchema }),
-  authorize(["DIRECTOR", "FISHERIES_OFFICER"], {
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
     resolveSubCounty: (req) => (req.body as z.infer<typeof updateInspectionSchema>).subCounty
   }),
   auditLog("INSPECTION"),
@@ -94,7 +94,7 @@ router.put(
 router.delete(
   "/:id",
   validate({ params: idParamSchema }),
-  authorize(["DIRECTOR"]),
+  authorize(["DIRECTOR", "ADMIN"]),
   auditLog("INSPECTION"),
   asyncHandler(async (req, res) => {
     const { id } = req.params as z.infer<typeof idParamSchema>;

@@ -18,7 +18,7 @@ const replySchema = z.object({
     status: z.enum(QueryStatus).optional()
 });
 router.use(authenticate);
-router.get("/", authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER"]), asyncHandler(async (req, res) => {
+router.get("/", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER"]), asyncHandler(async (req, res) => {
     if (!req.user) {
         throw new HttpError(401, "Unauthorized");
     }
@@ -48,7 +48,7 @@ router.post("/", validate({ body: createQuerySchema }), authorize(["FARMER"]), a
     });
     res.status(201).json({ data: query });
 }));
-router.patch("/:id/reply", validate({ params: idParamSchema, body: replySchema }), authorize(["DIRECTOR", "FISHERIES_OFFICER"]), auditLog("QUERY"), asyncHandler(async (req, res) => {
+router.patch("/:id/reply", validate({ params: idParamSchema, body: replySchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]), auditLog("QUERY"), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const payload = req.body;
     const query = await prisma.query.findUnique({
@@ -70,7 +70,7 @@ router.patch("/:id/reply", validate({ params: idParamSchema, body: replySchema }
     });
     res.status(200).json({ data: updated });
 }));
-router.patch("/:id/resolve", validate({ params: idParamSchema }), authorize(["DIRECTOR", "FISHERIES_OFFICER"]), auditLog("QUERY"), asyncHandler(async (req, res) => {
+router.patch("/:id/resolve", validate({ params: idParamSchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]), auditLog("QUERY"), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const query = await prisma.query.update({
         where: { id },

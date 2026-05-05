@@ -119,6 +119,7 @@ export interface Inspection {
 export interface BlueEconomyProject {
   id: string;
   projectCode: string;
+  budgetLine?: string | null;
   category: "BLUE_ECONOMY" | "LAKEFRONT_DEVELOPMENT" | "AQUACULTURE_DEVELOPMENT";
   name: string;
   description: string;
@@ -127,6 +128,7 @@ export interface BlueEconomyProject {
   latitude?: number | null;
   longitude?: number | null;
   budget: number;
+  completionPercent: number;
   funder: string;
   status: "PENDING" | "IN_PROGRESS" | "STALLED" | "PLANNED" | "ONGOING" | "COMPLETED" | "CANCELLED";
   photos: string[];

@@ -48,11 +48,11 @@ const AppRouter = () => {
             }
           />
 
-          <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"]} />}>
+          <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST"]} />}>
             <Route path="/dashboard" element={<PageLayout><DashboardPage /></PageLayout>} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"]} />}>
+          <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST"]} />}>
             <Route path="/farmers" element={<PageLayout><FarmersPage /></PageLayout>} />
             <Route path="/capture-fisheries" element={<PageLayout><CaptureFisheriesPage /></PageLayout>} />
             <Route path="/projects" element={<PageLayout><ProjectsPage /></PageLayout>} />
@@ -63,7 +63,7 @@ const AppRouter = () => {
             <Route path="/licenses" element={<PageLayout><LicensesPage /></PageLayout>} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "DATA_ANALYST"]} />}>
+          <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "ADMIN", "DATA_ANALYST"]} />}>
             <Route path="/reports" element={<PageLayout><ReportsPage /></PageLayout>} />
             <Route path="/analytics" element={<PageLayout><AnalyticsPage /></PageLayout>} />
           </Route>

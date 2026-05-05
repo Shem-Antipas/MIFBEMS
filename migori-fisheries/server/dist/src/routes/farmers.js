@@ -85,14 +85,14 @@ const updateFarmerSchema = z
     .strict();
 const idParamSchema = z.object({ id: z.string().min(5) });
 router.use(authenticate);
-router.get("/", authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER"]), asyncHandler(async (req, res) => {
+router.get("/", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER"]), asyncHandler(async (req, res) => {
     if (!req.user) {
         throw new HttpError(401, "Unauthorized");
     }
     const farmers = await listFarmersByActor(req.user);
     res.status(200).json({ data: farmers });
 }));
-router.get("/:id", validate({ params: idParamSchema }), authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER"]), asyncHandler(async (req, res) => {
+router.get("/:id", validate({ params: idParamSchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER"]), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const farmer = await prisma.farmer.findUnique({
         where: { id },
@@ -112,7 +112,7 @@ router.get("/:id", validate({ params: idParamSchema }), authorize(["DIRECTOR", "
     }
     res.status(200).json({ data: farmer });
 }));
-router.post("/", validate({ body: createFarmerSchema }), authorize(["DIRECTOR", "FISHERIES_OFFICER"], {
+router.post("/", validate({ body: createFarmerSchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
     resolveSubCounty: (req) => req.body.subCounty
 }), auditLog("FARMER"), asyncHandler(async (req, res) => {
     if (!req.user) {
@@ -161,7 +161,7 @@ router.post("/", validate({ body: createFarmerSchema }), authorize(["DIRECTOR", 
     }
     res.status(201).json({ data: farmer });
 }));
-router.put("/:id", validate({ params: idParamSchema, body: updateFarmerSchema }), authorize(["DIRECTOR", "FISHERIES_OFFICER"], {
+router.put("/:id", validate({ params: idParamSchema, body: updateFarmerSchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
     resolveSubCounty: (req) => req.body.subCounty
 }), auditLog("FARMER"), asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -190,7 +190,7 @@ router.put("/:id", validate({ params: idParamSchema, body: updateFarmerSchema })
     });
     res.status(200).json({ data: farmer });
 }));
-router.delete("/:id", validate({ params: idParamSchema }), authorize(["DIRECTOR"]), auditLog("FARMER"), asyncHandler(async (req, res) => {
+router.delete("/:id", validate({ params: idParamSchema }), authorize(["DIRECTOR", "ADMIN"]), auditLog("FARMER"), asyncHandler(async (req, res) => {
     const { id } = req.params;
     await prisma.farmer.delete({ where: { id } });
     res.status(204).send();

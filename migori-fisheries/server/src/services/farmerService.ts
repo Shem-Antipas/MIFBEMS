@@ -8,7 +8,7 @@ interface Actor {
 }
 
 export const listFarmersByActor = (actor: Actor): Promise<Farmer[]> => {
-  if (actor.role === "DIRECTOR" || actor.role === "DATA_ANALYST") {
+  if (actor.role === "DIRECTOR" || actor.role === "ADMIN" || actor.role === "DATA_ANALYST") {
     return prisma.farmer.findMany({ orderBy: { createdAt: "desc" } });
   }
 

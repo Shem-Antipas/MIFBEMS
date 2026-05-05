@@ -49,7 +49,7 @@ const FarmersPage = () => {
     }
   });
 
-  const canCreate = userRole === "DIRECTOR" || userRole === "FISHERIES_OFFICER";
+  const canCreate = userRole === "DIRECTOR" || userRole === "ADMIN" || userRole === "FISHERIES_OFFICER";
   const canRecordLicense = userRole === "FISHERIES_OFFICER";
 
   const errorMessage =

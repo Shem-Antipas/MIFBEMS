@@ -77,7 +77,7 @@ const LicensesPage = () => {
   const { data: licenses = [], isLoading } = useLicenses();
   const { data: farmers = [] } = useFarmers();
   const canRecordLicense = userRole === "FISHERIES_OFFICER";
-  const canApproveLicense = userRole === "DIRECTOR";
+  const canApproveLicense = userRole === "DIRECTOR" || userRole === "ADMIN";
 
   const availableFarmers = useMemo(
     () =>
@@ -190,7 +190,7 @@ const LicensesPage = () => {
         <div>
           <h1 className="text-xl font-semibold">Licenses</h1>
           <p className="text-sm text-muted-foreground">
-            Officers record license and receipt details. Director approval is required for validity.
+            Officers record license and receipt details. Director or Admin approval is required for validity.
           </p>
         </div>
         <ExportButton filename="licenses" sheetName="Licenses" columns={licenseExportColumns} rows={licenses} />
@@ -254,7 +254,7 @@ const LicensesPage = () => {
               <Input type="date" {...register("expiryDate", { required: true })} />
               <div className="flex justify-end md:col-span-3">
                 <Button type="submit" disabled={createLicense.isPending}>
-                  {createLicense.isPending ? "Recording..." : "Submit for Director Approval"}
+                  {createLicense.isPending ? "Recording..." : "Submit for Approval"}
                 </Button>
               </div>
             </form>

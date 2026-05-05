@@ -177,38 +177,235 @@ async function main() {
         prisma.blueEconomyProject.createMany({
             data: [
                 {
-                    name: "Lake Victoria Cage Expansion",
-                    subCounty: "Suna East",
-                    budget: 4_500_000,
-                    funder: "County Government",
-                    status: ProjectStatus.ONGOING,
-                    startDate: makeDate("2025-02-01")
-                },
-                {
-                    name: "Nyatike Hatchery Upgrade",
-                    subCounty: "Nyatike",
-                    budget: 2_200_000,
-                    funder: "World Bank",
-                    status: ProjectStatus.PLANNED,
-                    startDate: makeDate("2026-06-15")
-                },
-                {
-                    name: "Kuria Cold Chain Facilities",
-                    subCounty: "Kuria West",
-                    budget: 3_100_000,
-                    funder: "IFAD",
+                    name: "Procurement of fingerlings",
+                    budgetLine: "3111302",
+                    subCounty: "County Wide",
+                    ward: "All wards",
+                    budget: 1_200_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
                     status: ProjectStatus.COMPLETED,
-                    startDate: makeDate("2024-01-10"),
-                    endDate: makeDate("2025-12-10")
+                    startDate: makeDate("2022-01-01")
                 },
                 {
-                    name: "Uriri Beach Landing Site",
+                    name: "Purchase of wooden boats",
+                    budgetLine: "3110702",
+                    subCounty: "Nyatike",
+                    ward: "Unspecified",
+                    budget: 3_200_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2022-01-01")
+                },
+                {
+                    name: "Raised Ponds",
+                    budgetLine: "2211007",
+                    subCounty: "Kuria West",
+                    ward: "Unspecified",
+                    budget: 480_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Pond construction and renovation",
+                    budgetLine: "3110504",
+                    subCounty: "County Wide",
+                    ward: "All wards",
+                    budget: 3_200_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Boat, Engine and Trolley",
+                    budgetLine: "3111103",
+                    subCounty: "Nyatike",
+                    ward: "Unspecified",
+                    budget: 2_500_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Harvesting Nets",
+                    budgetLine: "2211007",
+                    subCounty: "Nyatike",
+                    ward: "Unspecified",
+                    budget: 880_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Pond Liners",
+                    budgetLine: "2211007",
                     subCounty: "Uriri",
-                    budget: 1_500_000,
-                    funder: "Blue Economy Fund",
-                    status: ProjectStatus.CANCELLED,
-                    startDate: makeDate("2024-05-05"),
-                    endDate: makeDate("2024-11-30")
+                    ward: "Unspecified",
+                    budget: 1_200_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Predator Nets",
+                    budgetLine: "2211007",
+                    subCounty: "County Wide",
+                    ward: "All wards",
+                    budget: 800_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Beach Seine",
+                    budgetLine: "2211007",
+                    subCounty: "Nyatike",
+                    ward: "Unspecified",
+                    budget: 250_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Monosex Tilapia Fingerlings",
+                    budgetLine: "3111302",
+                    subCounty: "County Wide",
+                    ward: "All wards",
+                    budget: 3_000_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Mixed Sex Tilapia Fingerlings",
+                    budgetLine: "3111302",
+                    subCounty: "County Wide",
+                    ward: "All wards",
+                    budget: 1_200_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Catfish Fingerlings",
+                    budgetLine: "3111302",
+                    subCounty: "County Wide",
+                    ward: "All wards",
+                    budget: 400_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Fish Feeds (Grower Mash)",
+                    budgetLine: "2211007",
+                    subCounty: "County Wide",
+                    ward: "All wards",
+                    budget: 1_700_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Fish Feeds (Starter Mash)",
+                    budgetLine: "2211007",
+                    subCounty: "County Wide",
+                    ward: "All wards",
+                    budget: 1_800_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Cold Storage for Fish Market",
+                    budgetLine: "3111103",
+                    subCounty: "County Wide",
+                    ward: "All wards",
+                    budget: 10_000_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Omena Drying Sheds",
+                    budgetLine: "3111504",
+                    subCounty: "Nyatike",
+                    ward: "Unspecified",
+                    budget: 2_000_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Fencing of aquatic recreation park",
+                    budgetLine: "3111504",
+                    subCounty: "Nyatike",
+                    ward: "Got Kachola",
+                    budget: 890_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Acquisition of land for aquatic recreation park",
+                    budgetLine: "3130101",
+                    subCounty: "Nyatike",
+                    ward: "Got Kachola",
+                    budget: 2_000_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Purchase of cages",
+                    budgetLine: "2211007",
+                    subCounty: "Nyatike",
+                    ward: "Unspecified",
+                    budget: 4_000_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Fish Banda Renovation",
+                    budgetLine: "2220205",
+                    subCounty: "Nyatike",
+                    ward: "Kachieng",
+                    budget: 3_600_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
+                },
+                {
+                    name: "Purchase of life jackets",
+                    budgetLine: "2211007",
+                    subCounty: "Nyatike",
+                    ward: "All wards",
+                    budget: 1_000_000,
+                    completionPercent: 100,
+                    funder: "County Government of Migori",
+                    status: ProjectStatus.COMPLETED,
+                    startDate: makeDate("2023-01-01")
                 }
             ]
         }),

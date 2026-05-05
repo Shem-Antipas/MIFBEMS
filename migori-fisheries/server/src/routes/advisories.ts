@@ -26,7 +26,7 @@ router.use(authenticate);
 
 router.get(
   "/",
-  authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER"]),
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER"]),
   asyncHandler(async (req, res) => {
     if (!req.user) {
       throw new HttpError(401, "Unauthorized");
@@ -51,7 +51,7 @@ router.get(
 router.post(
   "/",
   validate({ body: createAdvisorySchema }),
-  authorize(["DIRECTOR", "FISHERIES_OFFICER"], {
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
     resolveSubCounty: (req) => (req.body as z.infer<typeof createAdvisorySchema>).subCounty
   }),
   auditLog("ADVISORY"),
@@ -65,7 +65,7 @@ router.post(
 router.put(
   "/:id",
   validate({ params: idParamSchema, body: updateAdvisorySchema }),
-  authorize(["DIRECTOR", "FISHERIES_OFFICER"], {
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
     resolveSubCounty: (req) => (req.body as z.infer<typeof updateAdvisorySchema>).subCounty
   }),
   auditLog("ADVISORY"),
@@ -95,7 +95,7 @@ router.put(
 router.delete(
   "/:id",
   validate({ params: idParamSchema }),
-  authorize(["DIRECTOR"]),
+  authorize(["DIRECTOR", "ADMIN"]),
   auditLog("ADVISORY"),
   asyncHandler(async (req, res) => {
     const { id } = req.params as z.infer<typeof idParamSchema>;

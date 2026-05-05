@@ -18,7 +18,7 @@ router.use(authenticate);
 router.get(
   "/summary",
   validate({ query: summaryQuerySchema }),
-  authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"]),
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST"]),
   asyncHandler(async (req, res) => {
     const query = req.query as z.infer<typeof summaryQuerySchema>;
 

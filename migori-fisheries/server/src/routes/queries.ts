@@ -26,7 +26,7 @@ router.use(authenticate);
 
 router.get(
   "/",
-  authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER"]),
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER"]),
   asyncHandler(async (req, res) => {
     if (!req.user) {
       throw new HttpError(401, "Unauthorized");
@@ -75,7 +75,7 @@ router.post(
 router.patch(
   "/:id/reply",
   validate({ params: idParamSchema, body: replySchema }),
-  authorize(["DIRECTOR", "FISHERIES_OFFICER"]),
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]),
   auditLog("QUERY"),
   asyncHandler(async (req, res) => {
     const { id } = req.params as z.infer<typeof idParamSchema>;
@@ -109,7 +109,7 @@ router.patch(
 router.patch(
   "/:id/resolve",
   validate({ params: idParamSchema }),
-  authorize(["DIRECTOR", "FISHERIES_OFFICER"]),
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]),
   auditLog("QUERY"),
   asyncHandler(async (req, res) => {
     const { id } = req.params as z.infer<typeof idParamSchema>;

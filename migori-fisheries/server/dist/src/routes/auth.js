@@ -51,7 +51,8 @@ const passwordResetLimiter = rateLimit({
 const cookieOptions = {
     httpOnly: true,
     secure: env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: env.COOKIE_SAME_SITE,
+    domain: env.COOKIE_DOMAIN,
     path: "/api/v1/auth",
     maxAge: 7 * 24 * 60 * 60 * 1000
 };

@@ -11,7 +11,7 @@ const summaryQuerySchema = z.object({
     subCounty: z.string().optional()
 });
 router.use(authenticate);
-router.get("/summary", validate({ query: summaryQuerySchema }), authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST"]), asyncHandler(async (req, res) => {
+router.get("/summary", validate({ query: summaryQuerySchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST"]), asyncHandler(async (req, res) => {
     const query = req.query;
     const subCounty = req.user?.role === "FISHERIES_OFFICER" ? req.user.subCounty ?? undefined : query.subCounty;
     const [summary, productionBySubCounty, licensesByStatus] = await Promise.all([

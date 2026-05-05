@@ -137,8 +137,8 @@ router.put("/:id", validate({ params: idParamSchema, body: updateLicenseSchema }
     }
     const payload = req.body;
     const isApprovalChange = payload.status !== undefined;
-    if (isApprovalChange && req.user?.role !== "DIRECTOR") {
-        throw new HttpError(403, "Only the Director can approve or reject licenses");
+    if (isApprovalChange && req.user?.role !== "DIRECTOR" && req.user?.role !== "ADMIN") {
+        throw new HttpError(403, "Only the Director or Admin can approve or reject licenses");
     }
     if (req.user?.role === "FISHERIES_OFFICER" && license.status !== LicenseStatus.PENDING) {
         throw new HttpError(403, "Approved, rejected, expired, or revoked licenses cannot be edited by extension officers");
