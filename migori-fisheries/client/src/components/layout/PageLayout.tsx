@@ -43,7 +43,7 @@ const PageLayout = ({ children }: PageLayoutProps) => {
   }, [mobileMenuOpen]);
 
   return (
-    <div className="min-h-screen bg-background lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
+    <div className="min-h-screen bg-background lg:pl-64">
       <Sidebar />
       <div className="min-w-0">
         <Navbar onMenuClick={() => setMobileMenuOpen(true)} />

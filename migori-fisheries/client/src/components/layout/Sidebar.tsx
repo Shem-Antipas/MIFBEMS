@@ -16,8 +16,8 @@ const Sidebar = ({ mobile = false, onNavigate }: SidebarProps) => {
   return (
     <aside
       className={cn(
-        "w-64 shrink-0 border-r bg-card/95 px-4 py-6",
-        mobile ? "h-full overflow-y-auto" : "hidden min-h-screen lg:block"
+        "w-64 border-r bg-card/95 px-4 py-6",
+        mobile ? "h-full overflow-y-auto" : "fixed inset-y-0 left-0 z-40 hidden overflow-y-auto lg:block"
       )}
     >
       <div className="mb-8 flex items-center gap-3 px-2">
