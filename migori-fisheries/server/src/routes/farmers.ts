@@ -102,6 +102,10 @@ router.get(
       throw new HttpError(401, "Unauthorized");
     }
 
+    if (req.user.role === "FISHERIES_OFFICER" && !req.user.subCounty) {
+      throw new HttpError(403, "Your account is not assigned to a sub-county");
+    }
+
     const farmers = await listFarmersByActor(req.user);
     res.status(200).json({ data: farmers });
   })
@@ -152,6 +156,17 @@ router.post(
     }
 
     const payload = req.body as z.infer<typeof createFarmerSchema>;
+
+    if (req.user.role === "FISHERIES_OFFICER") {
+      if (!req.user.subCounty) {
+        throw new HttpError(403, "Your account is not assigned to a sub-county");
+      }
+
+      if (payload.subCounty !== req.user.subCounty) {
+        throw new HttpError(403, "You can only create farmers in your assigned sub-county");
+      }
+    }
+
     const { initialLicense, ...farmerPayload } = payload;
 
     const farmer = await prisma.$transaction(async (tx) => {
@@ -221,6 +236,10 @@ router.put(
       throw new HttpError(403, "You can only update farmers in your sub-county");
     }
 
+    if (req.user?.role === "FISHERIES_OFFICER" && !req.user.subCounty) {
+      throw new HttpError(403, "Your account is not assigned to a sub-county");
+    }
+
     const payload = req.body as z.infer<typeof updateFarmerSchema>;
     const targetSubCounty = payload.subCounty ?? existingFarmer.subCounty;
     const targetWard = payload.ward ?? existingFarmer.ward;
@@ -230,6 +249,10 @@ router.put(
 
     if (!isValidWardForSubCounty(targetSubCounty, targetWard)) {
       throw new HttpError(400, "Selected ward does not belong to the selected sub-county");
+    }
+
+    if (req.user?.role === "FISHERIES_OFFICER" && targetSubCounty !== req.user.subCounty) {
+      throw new HttpError(403, "You can only update farmers in your assigned sub-county");
     }
 
     if (targetActivePonds + targetInactivePonds > targetNumberOfPonds) {

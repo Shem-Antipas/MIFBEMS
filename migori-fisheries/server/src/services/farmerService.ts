@@ -13,8 +13,12 @@ export const listFarmersByActor = (actor: Actor): Promise<Farmer[]> => {
   }
 
   if (actor.role === "FISHERIES_OFFICER") {
+    if (!actor.subCounty) {
+      return Promise.resolve([]);
+    }
+
     return prisma.farmer.findMany({
-      where: { subCounty: actor.subCounty ?? undefined },
+      where: { subCounty: actor.subCounty },
       orderBy: { createdAt: "desc" }
     });
   }

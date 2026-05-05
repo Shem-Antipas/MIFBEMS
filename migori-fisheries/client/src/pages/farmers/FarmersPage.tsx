@@ -12,6 +12,7 @@ import { useCreateFarmer, useFarmers } from "@/hooks/useFarmers";
 import { farmersApi } from "@/api/farmers";
 import type { ExcelColumn } from "@/lib/exportToExcel";
 import type { Farmer } from "@/types";
+import { MIGORI_SUBCOUNTIES } from "@/lib/locationData";
 
 const farmerExportColumns = [
   { header: "Farmer ID", value: "farmerCode" },
@@ -36,6 +37,7 @@ const farmerExportColumns = [
 const FarmersPage = () => {
   const [open, setOpen] = useState(false);
   const userRole = useAuthStore((state) => state.user?.role);
+  const userSubCounty = useAuthStore((state) => state.user?.subCounty ?? null);
   const queryClient = useQueryClient();
 
   const { data: farmers = [], isLoading, isError, error } = useFarmers();
@@ -51,6 +53,10 @@ const FarmersPage = () => {
 
   const canCreate = userRole === "DIRECTOR" || userRole === "ADMIN" || userRole === "FISHERIES_OFFICER";
   const canRecordLicense = userRole === "FISHERIES_OFFICER";
+  const enforcedSubCounty =
+    userRole === "FISHERIES_OFFICER" && userSubCounty && MIGORI_SUBCOUNTIES.includes(userSubCounty as (typeof MIGORI_SUBCOUNTIES)[number])
+      ? (userSubCounty as (typeof MIGORI_SUBCOUNTIES)[number])
+      : undefined;
 
   const errorMessage =
     (error as AxiosError<{ error?: string }> | null)?.response?.data?.error ??
@@ -151,6 +157,7 @@ const FarmersPage = () => {
         onClose={() => setOpen(false)}
         isSubmitting={createFarmer.isPending}
         canRecordLicense={canRecordLicense}
+        enforcedSubCounty={enforcedSubCounty}
         onSubmit={async (payload) => {
           try {
             await createFarmer.mutateAsync(payload);

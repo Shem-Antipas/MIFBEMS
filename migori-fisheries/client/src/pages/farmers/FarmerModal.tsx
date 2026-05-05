@@ -112,6 +112,7 @@ interface FarmerModalProps {
   onSubmit: (payload: CreateFarmerPayload) => Promise<void>;
   isSubmitting: boolean;
   canRecordLicense: boolean;
+  enforcedSubCounty?: (typeof MIGORI_SUBCOUNTIES)[number];
 }
 
 const MapPicker = ({ onPick }: { onPick: (lat: number, lng: number) => void }) => {
@@ -140,7 +141,14 @@ const MapAutoFocus = ({ location }: { location: LocationPoint }) => {
   );
 };
 
-const FarmerModal = ({ open, onClose, onSubmit, isSubmitting, canRecordLicense }: FarmerModalProps) => {
+const FarmerModal = ({
+  open,
+  onClose,
+  onSubmit,
+  isSubmitting,
+  canRecordLicense,
+  enforcedSubCounty
+}: FarmerModalProps) => {
   const [manualLocation, setManualLocation] = useState<LocationPoint | null>(null);
 
   const {
@@ -170,9 +178,18 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting, canRecordLicense }
   const selectedSubCounty = useWatch({ control, name: "subCounty", defaultValue: "Suna East" });
   const selectedWard = useWatch({ control, name: "ward", defaultValue: "God Jope" });
   const issueLicense = useWatch({ control, name: "issueLicense", defaultValue: false });
-  const availableWards = WARDS_BY_SUBCOUNTY[selectedSubCounty];
-  const wardLocation = getWardCoordinates(selectedSubCounty, selectedWard);
+  const effectiveSubCounty = enforcedSubCounty ?? selectedSubCounty;
+  const availableWards = WARDS_BY_SUBCOUNTY[effectiveSubCounty];
+  const wardLocation = getWardCoordinates(effectiveSubCounty, selectedWard);
   const selectedLocation = manualLocation ?? wardLocation;
+
+  useEffect(() => {
+    if (!enforcedSubCounty) {
+      return;
+    }
+
+    setValue("subCounty", enforcedSubCounty, { shouldValidate: true });
+  }, [enforcedSubCounty, setValue]);
 
   useEffect(() => {
     const currentWard = getValues("ward");
@@ -261,6 +278,7 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting, canRecordLicense }
             <select
               className="w-full rounded-lg border px-3 py-2 text-sm"
               {...register("subCounty", { onChange: () => setManualLocation(null) })}
+              disabled={Boolean(enforcedSubCounty)}
             >
               {MIGORI_SUBCOUNTIES.map((subCounty) => (
                 <option key={subCounty} value={subCounty}>
@@ -416,7 +434,7 @@ const FarmerModal = ({ open, onClose, onSubmit, isSubmitting, canRecordLicense }
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               Selected: {selectedLocation.lat.toFixed(5)}, {selectedLocation.lng.toFixed(5)} for {selectedWard},{" "}
-              {selectedSubCounty}
+              {effectiveSubCounty}
             </p>
           </div>
 

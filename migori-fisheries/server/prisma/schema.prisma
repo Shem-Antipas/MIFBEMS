@@ -154,16 +154,27 @@ model ProductionRecord {
 model CaptureFisheriesRecord {
   id           String   @id @default(cuid())
   captureCode  String   @unique @default(dbgenerated("('MIF-CAP-'::text || lpad((nextval('\"CaptureFisheriesRecord_captureCode_seq\"'::regclass))::text, 6, '0'::text))"))
+  extensionOfficerName  String
+  extensionOfficerPhone String
   fisherName   String
+  farmerNumber String?
   idNumber     String?
   phoneNumber  String?
+  gender       Gender
+  ageBracket   AgeBracket
+  topics       String[] @default([])
   bmuName      String?
   landingSite  String?
   ward         String   @default("Unspecified")
+  latitude     Float?
+  longitude    Float?
   species      String
   catchKg      Float
   value        Float    @default(0)
   effortHours  Float?
+  approvalStatus CaptureApprovalStatus @default(PENDING)
+  approvedById String?
+  approvedAt   DateTime?
   fishingDate  DateTime
   month        Int?
   year         Int?
@@ -175,6 +186,23 @@ model CaptureFisheriesRecord {
   @@index([subCounty])
   @@index([fishingDate])
   @@index([recordedById])
+  @@index([approvalStatus])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum AgeBracket {
+  YOUTH
+  ADULT
+}
+
+enum CaptureApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model Inspection {

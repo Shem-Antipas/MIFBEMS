@@ -89,6 +89,9 @@ router.get("/", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALY
     if (!req.user) {
         throw new HttpError(401, "Unauthorized");
     }
+    if (req.user.role === "FISHERIES_OFFICER" && !req.user.subCounty) {
+        throw new HttpError(403, "Your account is not assigned to a sub-county");
+    }
     const farmers = await listFarmersByActor(req.user);
     res.status(200).json({ data: farmers });
 }));
@@ -119,6 +122,14 @@ router.post("/", validate({ body: createFarmerSchema }), authorize(["DIRECTOR", 
         throw new HttpError(401, "Unauthorized");
     }
     const payload = req.body;
+    if (req.user.role === "FISHERIES_OFFICER") {
+        if (!req.user.subCounty) {
+            throw new HttpError(403, "Your account is not assigned to a sub-county");
+        }
+        if (payload.subCounty !== req.user.subCounty) {
+            throw new HttpError(403, "You can only create farmers in your assigned sub-county");
+        }
+    }
     const { initialLicense, ...farmerPayload } = payload;
     const farmer = await prisma.$transaction(async (tx) => {
         const created = await tx.farmer.create({
@@ -172,6 +183,9 @@ router.put("/:id", validate({ params: idParamSchema, body: updateFarmerSchema })
     if (req.user?.role === "FISHERIES_OFFICER" && existingFarmer.subCounty !== req.user.subCounty) {
         throw new HttpError(403, "You can only update farmers in your sub-county");
     }
+    if (req.user?.role === "FISHERIES_OFFICER" && !req.user.subCounty) {
+        throw new HttpError(403, "Your account is not assigned to a sub-county");
+    }
     const payload = req.body;
     const targetSubCounty = payload.subCounty ?? existingFarmer.subCounty;
     const targetWard = payload.ward ?? existingFarmer.ward;
@@ -180,6 +194,9 @@ router.put("/:id", validate({ params: idParamSchema, body: updateFarmerSchema })
     const targetInactivePonds = payload.inactivePonds ?? existingFarmer.inactivePonds;
     if (!isValidWardForSubCounty(targetSubCounty, targetWard)) {
         throw new HttpError(400, "Selected ward does not belong to the selected sub-county");
+    }
+    if (req.user?.role === "FISHERIES_OFFICER" && targetSubCounty !== req.user.subCounty) {
+        throw new HttpError(403, "You can only update farmers in your assigned sub-county");
     }
     if (targetActivePonds + targetInactivePonds > targetNumberOfPonds) {
         throw new HttpError(400, "Active and inactive ponds cannot exceed total ponds");

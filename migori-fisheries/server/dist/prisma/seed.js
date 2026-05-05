@@ -540,23 +540,39 @@ async function main() {
     await prisma.captureFisheriesRecord.createMany({
         data: [
             {
+                extensionOfficerName: officer.name,
+                extensionOfficerPhone: "0712345678",
                 fisherName: "Peter Achieng",
+                farmerNumber: "FRM-NYA-001",
+                gender: "MALE",
+                ageBracket: "ADULT",
+                topics: ["Pond management", "Feed handling"],
                 bmuName: "Muhuru Bay BMU",
                 landingSite: "Muhuru Bay",
+                ward: "Muhuru",
                 species: "Tilapia",
                 catchKg: 128,
                 effortHours: 7,
                 fishingDate: makeDate("2026-04-05"),
+                subCounty: "Nyatike",
                 recordedById: officer.id
             },
             {
+                extensionOfficerName: officer.name,
+                extensionOfficerPhone: "0712345678",
                 fisherName: "Omondi Were",
+                farmerNumber: "FRM-NYA-002",
+                gender: "MALE",
+                ageBracket: "YOUTH",
+                topics: ["Gear compliance", "Fish handling"],
                 bmuName: "Sori BMU",
                 landingSite: "Sori",
+                ward: "Kanyasa",
                 species: "Nile Perch",
                 catchKg: 86,
                 effortHours: 6,
                 fishingDate: makeDate("2026-04-08"),
+                subCounty: "Nyatike",
                 recordedById: officer.id
             }
         ]

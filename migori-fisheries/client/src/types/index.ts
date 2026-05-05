@@ -87,20 +87,31 @@ export interface License {
 export interface CaptureFisheriesRecord {
   id: string;
   captureCode: string;
+  extensionOfficerName: string;
+  extensionOfficerPhone: string;
   fisherName: string;
+  farmerNumber?: string | null;
   idNumber?: string | null;
   phoneNumber?: string | null;
   bmuName?: string | null;
   landingSite?: string | null;
+  gender: "MALE" | "FEMALE";
+  ageBracket: "YOUTH" | "ADULT";
+  topics: string[];
   ward: string;
+  latitude?: number | null;
+  longitude?: number | null;
   species: string;
   catchKg: number;
   value: number;
   month?: number | null;
   year?: number | null;
   effortHours?: number | null;
+  approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
+  approvedById?: string | null;
+  approvedAt?: string | null;
   fishingDate: string;
-  subCounty: "Nyatike";
+  subCounty: string;
   recordedById: string;
   createdAt: string;
 }

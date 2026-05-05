@@ -13,7 +13,8 @@ const StatusBadge = ({ status }: StatusBadgeProps) => {
     normalized === "VALID" ||
     normalized === "PASS" ||
     normalized === "RESOLVED" ||
-    normalized === "COMPLETED"
+    normalized === "COMPLETED" ||
+    normalized === "APPROVED"
       ? "success"
       : normalized === "PENDING" ||
           normalized === "PLANNED" ||
