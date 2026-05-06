@@ -321,7 +321,11 @@ router.get(
       throw new HttpError(401, "Unauthorized");
     }
 
-    const where = req.user.role === "FISHERIES_OFFICER" ? { subCounty: req.user.subCounty ?? undefined } : {};
+    if (req.user.role === "FISHERIES_OFFICER" && !req.user.subCounty) {
+      throw new HttpError(403, "Your account is not assigned to a sub-county");
+    }
+
+    const where = req.user.role === "FISHERIES_OFFICER" ? { subCounty: req.user.subCounty } : {};
 
     const projects = await prisma.blueEconomyProject.findMany({
       where,

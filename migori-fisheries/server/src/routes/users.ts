@@ -48,11 +48,11 @@ const validateOperationalArea = (role: Role, subCounty: string | null | undefine
 };
 
 const createUserSchema = z.object({
-  name: z.string().min(2),
-  email: z.string().email(),
-  password: z.string().min(8),
+  name: z.string().trim().min(2, "Name must be at least 2 characters"),
+  email: z.string().trim().email("Enter a valid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
   role: z.enum(Role),
-  subCounty: z.string().min(2).optional(),
+  subCounty: z.string().min(2).nullable().optional(),
   isActive: z.boolean().optional()
 }).strict().superRefine((value, ctx) => {
   validateOperationalArea(value.role, value.subCounty, ctx);
@@ -249,6 +249,26 @@ router.patch(
     });
 
     res.status(200).json({ data: user });
+  })
+);
+
+router.delete(
+  "/:id",
+  validate({ params: idParamSchema }),
+  authorize(["DIRECTOR", "ADMIN"]),
+  auditLog("USER", "DELETE"),
+  asyncHandler(async (req, res) => {
+    if (!req.user) {
+      throw new HttpError(401, "Unauthorized");
+    }
+
+    const { id } = req.params as z.infer<typeof idParamSchema>;
+    if (id === req.user.id) {
+      throw new HttpError(400, "You cannot delete your own account");
+    }
+
+    await prisma.user.delete({ where: { id } });
+    res.status(204).send();
   })
 );
 

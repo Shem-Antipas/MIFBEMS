@@ -55,5 +55,8 @@ export const licensesApi = {
   async update(id: string, payload: UpdateLicensePayload): Promise<License> {
     const { data } = await apiClient.put<{ data: License }>(`/licenses/${id}`, payload);
     return data.data;
+  },
+  async remove(id: string): Promise<void> {
+    await apiClient.delete(`/licenses/${id}`);
   }
 };

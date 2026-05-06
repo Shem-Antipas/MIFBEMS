@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { AxiosError } from "axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -6,6 +6,7 @@ import DataTable from "@/components/shared/DataTable";
 import ExportButton from "@/components/shared/ExportButton";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import FarmerModal from "@/pages/farmers/FarmerModal";
 import { useAuthStore } from "@/store/authStore";
 import { useCreateFarmer, useFarmers } from "@/hooks/useFarmers";
@@ -13,6 +14,7 @@ import { farmersApi } from "@/api/farmers";
 import type { ExcelColumn } from "@/lib/exportToExcel";
 import type { Farmer } from "@/types";
 import { MIGORI_SUBCOUNTIES } from "@/lib/locationData";
+import { getSearchEmptyLabel } from "@/lib/search";
 
 const farmerExportColumns = [
   { header: "Farmer ID", value: "farmerCode" },
@@ -36,6 +38,7 @@ const farmerExportColumns = [
 
 const FarmersPage = () => {
   const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const userRole = useAuthStore((state) => state.user?.role);
   const userSubCounty = useAuthStore((state) => state.user?.subCounty ?? null);
   const queryClient = useQueryClient();
@@ -50,8 +53,16 @@ const FarmersPage = () => {
       void queryClient.invalidateQueries({ queryKey: ["reports", "summary"] });
     }
   });
+  const deleteFarmer = useMutation({
+    mutationFn: farmersApi.remove,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["farmers"] });
+      void queryClient.invalidateQueries({ queryKey: ["reports", "summary"] });
+    }
+  });
 
   const canCreate = userRole === "DIRECTOR" || userRole === "ADMIN" || userRole === "FISHERIES_OFFICER";
+  const canDelete = userRole === "DIRECTOR" || userRole === "ADMIN";
   const canRecordLicense = userRole === "FISHERIES_OFFICER";
   const enforcedSubCounty =
     userRole === "FISHERIES_OFFICER" && userSubCounty && MIGORI_SUBCOUNTIES.includes(userSubCounty as (typeof MIGORI_SUBCOUNTIES)[number])
@@ -63,6 +74,28 @@ const FarmersPage = () => {
     (error as Error | null)?.message ??
     "Failed to load farmers.";
 
+  const filteredFarmers = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return farmers;
+
+    return farmers.filter((farmer) =>
+      [
+        farmer.farmerCode,
+        farmer.name,
+        farmer.idNumber ?? "",
+        farmer.phoneNumber ?? "",
+        farmer.email ?? "",
+        farmer.subCounty,
+        farmer.ward,
+        farmer.farmType,
+        farmer.species.join(", "),
+        farmer.productionKg.toString(),
+        farmer.numberOfPonds.toString(),
+        farmer.status
+      ].some((value) => value.toLowerCase().includes(term))
+    );
+  }, [farmers, searchTerm]);
+
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
@@ -71,11 +104,17 @@ const FarmersPage = () => {
           <p className="text-sm text-muted-foreground">Manage fish farmer records by sub-county.</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          <Input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search farmers..."
+            className="w-56"
+          />
           <ExportButton
             filename="farmers-registry"
             sheetName="Farmers"
             columns={farmerExportColumns}
-            rows={farmers}
+            rows={filteredFarmers}
           />
           {canCreate ? (
             <Button type="button" onClick={() => setOpen(true)}>
@@ -109,7 +148,7 @@ const FarmersPage = () => {
           "Status",
           "Actions"
         ]}
-        rows={farmers.map((farmer) => [
+        rows={filteredFarmers.map((farmer) => [
           farmer.farmerCode,
           farmer.name,
           farmer.idNumber ?? "-",
@@ -124,32 +163,64 @@ const FarmersPage = () => {
           farmer.activePonds.toLocaleString(),
           farmer.inactivePonds.toLocaleString(),
           <StatusBadge key={farmer.id} status={farmer.status} />,
-          canCreate ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={updateFarmerStatus.isPending}
-              onClick={async () => {
-                const nextStatus = farmer.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
-                try {
-                  await updateFarmerStatus.mutateAsync({ id: farmer.id, status: nextStatus });
-                  toast.success(`Farmer marked ${nextStatus.toLowerCase()} successfully`);
-                } catch (mutationError) {
-                  const message =
-                    (mutationError as AxiosError<{ error?: string }>).response?.data?.error ??
-                    "Failed to update farmer status.";
-                  toast.error(message);
-                }
-              }}
-            >
-              {farmer.status === "ACTIVE" ? "Mark inactive" : "Mark active"}
-            </Button>
-          ) : (
-            "-"
-          )
+          canCreate || canDelete ? (
+            <div className="flex flex-wrap gap-2">
+              {canCreate ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={updateFarmerStatus.isPending}
+                  onClick={async () => {
+                    const nextStatus = farmer.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+                    try {
+                      await updateFarmerStatus.mutateAsync({ id: farmer.id, status: nextStatus });
+                      toast.success(`Farmer marked ${nextStatus.toLowerCase()} successfully`);
+                    } catch (mutationError) {
+                      const message =
+                        (mutationError as AxiosError<{ error?: string }>).response?.data?.error ??
+                        "Failed to update farmer status.";
+                      toast.error(message);
+                    }
+                  }}
+                >
+                  {farmer.status === "ACTIVE" ? "Mark inactive" : "Mark active"}
+                </Button>
+              ) : null}
+              {canDelete ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  disabled={deleteFarmer.isPending}
+                  onClick={async () => {
+                    if (!window.confirm(`Delete farmer ${farmer.name}?`)) {
+                      return;
+                    }
+
+                    try {
+                      await deleteFarmer.mutateAsync(farmer.id);
+                      toast.success("Farmer deleted");
+                    } catch (mutationError) {
+                      const message =
+                        (mutationError as AxiosError<{ error?: string }>).response?.data?.error ??
+                        "Failed to delete farmer.";
+                      toast.error(message);
+                    }
+                  }}
+                >
+                  Delete
+                </Button>
+              ) : null}
+            </div>
+          ) : "-"
         ])}
-        emptyLabel={isLoading ? "Loading farmers..." : "No farmers found."}
+        emptyLabel={getSearchEmptyLabel({
+          searchTerm,
+          isLoading,
+          loadingLabel: "Loading farmers...",
+          emptyLabel: "No farmers found."
+        })}
       />
 
       <FarmerModal

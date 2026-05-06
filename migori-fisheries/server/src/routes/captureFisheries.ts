@@ -11,7 +11,7 @@ import { validate } from "../middleware/validate.js";
 
 const router = Router();
 
-const createCaptureRecordSchema = z.object({
+const captureRecordFieldsSchema = z.object({
   extensionOfficerName: z.string().min(2),
   extensionOfficerPhone: z.string().min(7),
   fisherName: z.string().min(2),
@@ -25,6 +25,8 @@ const createCaptureRecordSchema = z.object({
   topics: z.array(z.string().min(2)).min(1),
   bmuName: z.string().min(2).optional(),
   landingSite: z.string().min(2).optional(),
+  activeCages: z.number().int().min(0).optional(),
+  inactiveCages: z.number().int().min(0).optional(),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
   species: z.string().min(2),
@@ -34,8 +36,20 @@ const createCaptureRecordSchema = z.object({
   year: z.number().int().min(2000).max(2100),
   effortHours: z.number().min(0).optional(),
   fishingDate: z.coerce.date().optional()
-}).superRefine((value, ctx) => {
+});
+
+const createCaptureRecordSchema = captureRecordFieldsSchema.superRefine((value, ctx) => {
   if (!isValidWardForSubCounty(value.subCounty, value.ward)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["ward"],
+      message: "Selected ward does not belong to the selected sub-county"
+    });
+  }
+});
+
+const updateCaptureRecordSchema = captureRecordFieldsSchema.partial().superRefine((value, ctx) => {
+  if (value.subCounty && value.ward && !isValidWardForSubCounty(value.subCounty, value.ward)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["ward"],
@@ -60,12 +74,11 @@ router.get(
       throw new HttpError(401, "Unauthorized");
     }
 
-    const where =
-      req.user.role === "FISHERIES_OFFICER"
-        ? req.user.subCounty
-          ? { subCounty: req.user.subCounty }
-          : { id: "__no_officer_subcounty__" }
-        : undefined;
+    if (req.user.role === "FISHERIES_OFFICER" && !req.user.subCounty) {
+      throw new HttpError(403, "Your account is not assigned to a sub-county");
+    }
+
+    const where = req.user.role === "FISHERIES_OFFICER" ? { subCounty: req.user.subCounty } : undefined;
 
     const records = await prisma.captureFisheriesRecord.findMany({
       where,
@@ -79,7 +92,7 @@ router.get(
 router.post(
   "/",
   validate({ body: createCaptureRecordSchema }),
-  authorize(["FISHERIES_OFFICER"], {
+  authorize(["FISHERIES_OFFICER", "DIRECTOR"], {
     resolveSubCounty: (req) => (req.body as z.infer<typeof createCaptureRecordSchema>).subCounty
   }),
   auditLog("CAPTURE_FISHERIES"),
@@ -88,12 +101,12 @@ router.post(
       throw new HttpError(401, "Unauthorized");
     }
 
-    if (!req.user.subCounty) {
+    if (req.user.role === "FISHERIES_OFFICER" && !req.user.subCounty) {
       throw new HttpError(403, "Your account is not assigned to a sub-county");
     }
 
     const payload = req.body as z.infer<typeof createCaptureRecordSchema>;
-    if (payload.subCounty !== req.user.subCounty) {
+    if (req.user.role === "FISHERIES_OFFICER" && payload.subCounty !== req.user.subCounty) {
       throw new HttpError(403, "You can only create extension entries in your assigned sub-county");
     }
 
@@ -103,6 +116,8 @@ router.post(
         ...payload,
         fishingDate,
         value: payload.value ?? 0,
+        activeCages: payload.activeCages ?? 0,
+        inactiveCages: payload.inactiveCages ?? 0,
         approvalStatus: CaptureApprovalStatus.PENDING,
         approvedById: null,
         approvedAt: null,
@@ -111,6 +126,52 @@ router.post(
     });
 
     res.status(201).json({ data: record });
+  })
+);
+
+router.put(
+  "/:id",
+  validate({ params: idParamSchema, body: updateCaptureRecordSchema }),
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
+    resolveSubCounty: (req) => (req.body as z.infer<typeof updateCaptureRecordSchema>).subCounty
+  }),
+  auditLog("CAPTURE_FISHERIES"),
+  asyncHandler(async (req, res) => {
+    if (!req.user) {
+      throw new HttpError(401, "Unauthorized");
+    }
+
+    const { id } = req.params as z.infer<typeof idParamSchema>;
+    const payload = req.body as z.infer<typeof updateCaptureRecordSchema>;
+    const existing = await prisma.captureFisheriesRecord.findUnique({ where: { id } });
+
+    if (!existing) {
+      throw new HttpError(404, "Extension entry not found");
+    }
+
+    if (req.user.role === "FISHERIES_OFFICER") {
+      if (!req.user.subCounty) {
+        throw new HttpError(403, "Your account is not assigned to a sub-county");
+      }
+
+      const targetSubCounty = payload.subCounty ?? existing.subCounty;
+      if (targetSubCounty !== req.user.subCounty) {
+        throw new HttpError(403, "You can only edit extension entries in your assigned sub-county");
+      }
+    }
+
+    const targetSubCounty = payload.subCounty ?? existing.subCounty;
+    const targetWard = payload.ward ?? existing.ward;
+    if (!isValidWardForSubCounty(targetSubCounty, targetWard)) {
+      throw new HttpError(400, "Selected ward does not belong to the selected sub-county");
+    }
+
+    const updated = await prisma.captureFisheriesRecord.update({
+      where: { id },
+      data: payload
+    });
+
+    res.status(200).json({ data: updated });
   })
 );
 
@@ -142,6 +203,38 @@ router.patch(
     });
 
     res.status(200).json({ data: record });
+  })
+);
+
+router.delete(
+  "/:id",
+  validate({ params: idParamSchema }),
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]),
+  auditLog("CAPTURE_FISHERIES"),
+  asyncHandler(async (req, res) => {
+    if (!req.user) {
+      throw new HttpError(401, "Unauthorized");
+    }
+
+    const { id } = req.params as z.infer<typeof idParamSchema>;
+    const existing = await prisma.captureFisheriesRecord.findUnique({ where: { id } });
+
+    if (!existing) {
+      throw new HttpError(404, "Extension entry not found");
+    }
+
+    if (req.user.role === "FISHERIES_OFFICER") {
+      if (!req.user.subCounty) {
+        throw new HttpError(403, "Your account is not assigned to a sub-county");
+      }
+
+      if (existing.subCounty !== req.user.subCounty) {
+        throw new HttpError(403, "You can only delete extension entries in your assigned sub-county");
+      }
+    }
+
+    await prisma.captureFisheriesRecord.delete({ where: { id } });
+    res.status(204).send();
   })
 );
 

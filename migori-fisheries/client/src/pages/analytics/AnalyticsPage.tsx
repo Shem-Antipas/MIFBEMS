@@ -7,6 +7,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Legend,
   Pie,
   PieChart,
@@ -18,6 +19,7 @@ import {
 import ExportButton from "@/components/shared/ExportButton";
 import StatCard from "@/components/shared/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { inspectionsApi } from "@/api/inspections";
 import { projectsApi } from "@/api/projects";
 import { useCaptureFisheries } from "@/hooks/useCaptureFisheries";
 import { useFarmers } from "@/hooks/useFarmers";
@@ -92,6 +94,13 @@ const formatTooltipKg = (value: unknown): string => formatKg(Number(value ?? 0))
 
 const getShare = (value: number, total: number): number => (total > 0 ? (value / total) * 100 : 0);
 
+const formatDisplayValue = (
+  value: number,
+  total: number,
+  mode: "FIGURE" | "PERCENT",
+  suffix = ""
+): string => (mode === "PERCENT" ? `${formatNumber(getShare(value, total), 1)}%` : `${formatNumber(value)}${suffix}`);
+
 const ChartCard = ({ title, children, className = "" }: { title: string; children: ReactNode; className?: string }) => (
   <Card className={className}>
     <CardHeader className="p-4 pb-2">
@@ -103,9 +112,14 @@ const ChartCard = ({ title, children, className = "" }: { title: string; childre
 
 const AnalyticsPage = () => {
   const [selectedSubCounty, setSelectedSubCounty] = useState<string>("All");
+  const [valueDisplayMode, setValueDisplayMode] = useState<"FIGURE" | "PERCENT">("FIGURE");
   const { data: farmers = [] } = useFarmers();
   const { data: licenses = [] } = useLicenses();
   const { data: captureRecords = [] } = useCaptureFisheries();
+  const { data: extensionEntries = [] } = useQuery({
+    queryKey: ["inspections"],
+    queryFn: inspectionsApi.list
+  });
   const { data: projects = [] } = useQuery({
     queryKey: ["projects"],
     queryFn: projectsApi.list
@@ -143,6 +157,14 @@ const AnalyticsPage = () => {
     [projects, selectedSubCounty]
   );
 
+  const filteredExtensionEntries = useMemo(
+    () =>
+      selectedSubCounty === "All"
+        ? extensionEntries
+        : extensionEntries.filter((entry) => entry.subCounty === selectedSubCounty),
+    [extensionEntries, selectedSubCounty]
+  );
+
   const farmProductionKg = useMemo(
     () => filteredFarmers.reduce((total, farmer) => total + farmer.productionKg, 0),
     [filteredFarmers]
@@ -172,6 +194,13 @@ const AnalyticsPage = () => {
       };
     });
   }, [captureRecords, farmers, licenses]);
+
+  const extensionSummaryRows = useMemo<NameValueRow[]>(() => {
+    return MIGORI_SUBCOUNTIES.map((subCounty) => ({
+      name: subCounty,
+      value: extensionEntries.filter((entry) => entry.subCounty === subCounty).length
+    })).filter((item) => selectedSubCounty === "All" || item.name === selectedSubCounty);
+  }, [extensionEntries, selectedSubCounty]);
 
   const visibleSubCountyRows = selectedSubCounty === "All"
     ? subCountyRows
@@ -353,9 +382,14 @@ const AnalyticsPage = () => {
         section: "Ward Drill Down",
         metric: row.ward,
         value: `${formatNumber(row.productionKg)} kg, ${formatNumber(row.farmers)} farmers`
+      })),
+      ...extensionSummaryRows.map((row) => ({
+        section: "Extension Summary",
+        metric: row.name,
+        value: row.value
       }))
     ];
-  }, [farmTypeRows, farmerStatusRows, licenseStatusRows, projectStatusRows, speciesRows, visibleSubCountyRows, wardRows]);
+  }, [extensionSummaryRows, farmTypeRows, farmerStatusRows, licenseStatusRows, projectStatusRows, speciesRows, visibleSubCountyRows, wardRows]);
 
   return (
     <section className="space-y-6">
@@ -367,6 +401,14 @@ const AnalyticsPage = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={valueDisplayMode}
+            onChange={(event) => setValueDisplayMode(event.target.value as "FIGURE" | "PERCENT")}
+          >
+            <option value="FIGURE">Display: Figure</option>
+            <option value="PERCENT">Display: Percent</option>
+          </select>
           <select
             className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={selectedSubCounty}
@@ -388,12 +430,13 @@ const AnalyticsPage = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <StatCard label="Total Fish Production" value={formatKg(totalProductionKg)} helper={`${formatNumber(totalProductionKg / 1000, 2)} MT`} />
         <StatCard label="Capture Fisheries" value={formatKg(captureProductionKg)} helper="Nyatike capture data" />
         <StatCard label="Fish Farmers" value={formatNumber(filteredFarmers.length)} helper={`${formatNumber(pondStats.farms)} pond farms`} />
         <StatCard label="Operating Units" value={formatNumber(operatingUnits)} helper="Active ponds plus non-pond farms" />
         <StatCard label="Average Production/Farmer" value={formatKg(averageProductionPerFarmer)} helper={`${formatNumber(validLicenseCount)} valid licenses`} />
+        <StatCard label="Extension Entries" value={formatNumber(filteredExtensionEntries.length)} helper="Services captured" />
       </div>
 
       <Card>
@@ -450,7 +493,19 @@ const AnalyticsPage = () => {
                   <XAxis dataKey="ward" fontSize={11} interval={0} angle={-24} textAnchor="end" height={72} />
                   <YAxis fontSize={11} tickFormatter={(value: number) => formatNumber(value / 1000, 1)} />
                   <Tooltip formatter={formatTooltipKg} />
-                  <Bar dataKey="productionKg" name="Production" radius={[6, 6, 0, 0]} fill="#2563eb" />
+                  <Bar dataKey="productionKg" name="Production" radius={[6, 6, 0, 0]} fill="#2563eb">
+                    <LabelList
+                      dataKey="productionKg"
+                      position="top"
+                      formatter={(value) =>
+                        formatDisplayValue(
+                          Number(value),
+                          wardRows.reduce((sum, row) => sum + row.productionKg, 0),
+                          valueDisplayMode
+                        )
+                      }
+                    />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -462,7 +517,20 @@ const AnalyticsPage = () => {
             {farmerStatusRows.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={farmerStatusRows} dataKey="value" nameKey="name" innerRadius={52} outerRadius={86}>
+                  <Pie
+                    data={farmerStatusRows}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={52}
+                    outerRadius={86}
+                    label={(entry) =>
+                      formatDisplayValue(
+                        Number(entry?.value ?? 0),
+                        farmerStatusRows.reduce((sum, row) => sum + row.value, 0),
+                        valueDisplayMode
+                      )
+                    }
+                  >
                     {farmerStatusRows.map((entry, index) => (
                       <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
                     ))}
@@ -486,7 +554,19 @@ const AnalyticsPage = () => {
               <XAxis dataKey="subCounty" fontSize={11} interval={0} angle={-20} textAnchor="end" height={56} />
               <YAxis fontSize={11} tickFormatter={(value: number) => formatNumber(value / 1000, 1)} />
               <Tooltip formatter={formatTooltipKg} />
-              <Bar dataKey="productionKg" name="Production" radius={[6, 6, 0, 0]} fill="#0f766e" />
+              <Bar dataKey="productionKg" name="Production" radius={[6, 6, 0, 0]} fill="#0f766e">
+                <LabelList
+                  dataKey="productionKg"
+                  position="top"
+                  formatter={(value) =>
+                    formatDisplayValue(
+                      Number(value),
+                      visibleSubCountyRows.reduce((sum, row) => sum + row.productionKg, 0),
+                      valueDisplayMode
+                    )
+                  }
+                />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -495,7 +575,22 @@ const AnalyticsPage = () => {
           {farmTypeRows.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={farmTypeRows} dataKey="value" nameKey="name" innerRadius={58} outerRadius={88} paddingAngle={2}>
+                <Pie
+                  data={farmTypeRows}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={58}
+                  outerRadius={88}
+                  paddingAngle={2}
+                  label={(entry) =>
+                    formatDisplayValue(
+                      Number(entry?.value ?? 0),
+                      farmTypeRows.reduce((sum, row) => sum + row.value, 0),
+                      valueDisplayMode,
+                      valueDisplayMode === "FIGURE" ? " kg" : ""
+                    )
+                  }
+                >
                   {farmTypeRows.map((entry, index) => (
                     <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
                   ))}
@@ -515,7 +610,15 @@ const AnalyticsPage = () => {
           {speciesRows.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={speciesRows} dataKey="quantityKg" nameKey="species" outerRadius={86}>
+                <Pie
+                  data={speciesRows}
+                  dataKey="quantityKg"
+                  nameKey="species"
+                  outerRadius={86}
+                  label={(entry) =>
+                    formatDisplayValue(Number(entry?.value ?? 0), totalProductionKg, valueDisplayMode, valueDisplayMode === "FIGURE" ? " kg" : "")
+                  }
+                >
                   {speciesRows.map((entry, index) => (
                     <Cell key={entry.species} fill={chartColors[index % chartColors.length]} />
                   ))}
@@ -541,6 +644,17 @@ const AnalyticsPage = () => {
                   {licenseStatusRows.map((entry) => (
                     <Cell key={entry.name} fill={statusColors[entry.name] ?? "#0f766e"} />
                   ))}
+                  <LabelList
+                    dataKey="value"
+                    position="right"
+                    formatter={(value) =>
+                      formatDisplayValue(
+                        Number(value),
+                        licenseStatusRows.reduce((sum, row) => sum + row.value, 0),
+                        valueDisplayMode
+                      )
+                    }
+                  />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -553,7 +667,20 @@ const AnalyticsPage = () => {
           {projectStatusRows.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={projectStatusRows} dataKey="value" nameKey="name" innerRadius={52} outerRadius={86}>
+                <Pie
+                  data={projectStatusRows}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={52}
+                  outerRadius={86}
+                  label={(entry) =>
+                    formatDisplayValue(
+                      Number(entry?.value ?? 0),
+                      projectStatusRows.reduce((sum, row) => sum + row.value, 0),
+                      valueDisplayMode
+                    )
+                  }
+                >
                   {projectStatusRows.map((entry) => (
                     <Cell key={entry.name} fill={statusColors[entry.name] ?? "#2563eb"} />
                   ))}
@@ -567,6 +694,36 @@ const AnalyticsPage = () => {
           )}
         </ChartCard>
       </div>
+
+      <ChartCard title="Extension Summaries by Sub-County">
+        {extensionSummaryRows.length > 0 ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={extensionSummaryRows} margin={{ left: 0, right: 8, bottom: 12 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" fontSize={11} interval={0} angle={-18} textAnchor="end" height={58} />
+              <YAxis fontSize={11} allowDecimals={false} />
+              <Tooltip />
+              <Bar dataKey="value" name="Extension Entries" radius={[6, 6, 0, 0]} fill="#0ea5e9">
+                <LabelList
+                  dataKey="value"
+                  position="top"
+                  formatter={(value) =>
+                    formatDisplayValue(
+                      Number(value),
+                      extensionSummaryRows.reduce((sum, row) => sum + row.value, 0),
+                      valueDisplayMode
+                    )
+                  }
+                />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="grid h-full place-items-center text-sm text-muted-foreground">
+            No extension entries available.
+          </div>
+        )}
+      </ChartCard>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_1fr_1.15fr]">
         <Card>
@@ -602,7 +759,20 @@ const AnalyticsPage = () => {
               <XAxis dataKey="name" fontSize={11} />
               <YAxis fontSize={11} tickFormatter={(value: number) => formatNumber(value / 1000, 1)} />
               <Tooltip formatter={formatTooltipKg} />
-              <Area type="monotone" dataKey="value" name="Production" stroke="#0f766e" fill="#99f6e4" />
+              <Area type="monotone" dataKey="value" name="Production" stroke="#0f766e" fill="#99f6e4">
+                <LabelList
+                  dataKey="value"
+                  position="top"
+                  formatter={(value) =>
+                    formatDisplayValue(
+                      Number(value),
+                      farmProductionKg + captureProductionKg + totalProductionKg,
+                      valueDisplayMode,
+                      valueDisplayMode === "FIGURE" ? " kg" : ""
+                    )
+                  }
+                />
+              </Area>
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>

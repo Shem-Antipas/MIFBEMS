@@ -99,6 +99,8 @@ export interface CaptureFisheriesRecord {
   ageBracket: "YOUTH" | "ADULT";
   topics: string[];
   ward: string;
+  activeCages: number;
+  inactiveCages: number;
   latitude?: number | null;
   longitude?: number | null;
   species: string;
@@ -119,7 +121,14 @@ export interface CaptureFisheriesRecord {
 export interface Inspection {
   id: string;
   farmName: string;
+  extensionOfficerName?: string | null;
+  extensionOfficerPhone?: string | null;
   subCounty: string;
+  ward?: string | null;
+  farmerPhoneNumber?: string | null;
+  extensionTopics?: string[];
+  feedback?: string | null;
+  challenges?: string | null;
   officerId: string;
   date: string;
   result: "PASS" | "FAIL" | "PENDING";

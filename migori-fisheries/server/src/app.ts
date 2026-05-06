@@ -17,6 +17,7 @@ import userRoutes from "./routes/users.js";
 import queryRoutes from "./routes/queries.js";
 import advisoryRoutes from "./routes/advisories.js";
 import captureFisheriesRoutes from "./routes/captureFisheries.js";
+import backupRoutes from "./routes/backups.js";
 
 export const app = express();
 
@@ -97,6 +98,7 @@ app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/queries", queryRoutes);
 app.use("/api/v1/advisories", advisoryRoutes);
 app.use("/api/v1/capture-fisheries", captureFisheriesRoutes);
+app.use("/api/v1/backups", backupRoutes);
 
 app.use((req: Request, _res: Response, next: NextFunction) => {
   const error = new Error(`Route not found: ${req.method} ${req.originalUrl}`);

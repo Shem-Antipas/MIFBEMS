@@ -66,11 +66,14 @@ router.get("/", authorize(["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "FAR
     if (!req.user) {
         throw new HttpError(401, "Unauthorized");
     }
+    if (req.user.role === "FISHERIES_OFFICER" && !req.user.subCounty) {
+        throw new HttpError(403, "Your account is not assigned to a sub-county");
+    }
     const where = req.user.role === "FISHERIES_OFFICER"
         ? {
             OR: [
-                { subCounty: req.user.subCounty ?? undefined },
-                { farmer: { subCounty: req.user.subCounty ?? undefined } }
+                { subCounty: req.user.subCounty },
+                { farmer: { subCounty: req.user.subCounty } }
             ]
         }
         : req.user.role === "FARMER"

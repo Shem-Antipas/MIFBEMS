@@ -49,7 +49,8 @@ const DashboardPage = () => {
   const fallbackTotalFarmers = farmers.length;
   const fallbackActiveLicenses = licenses.filter((item) => item.status === "VALID").length;
   const fallbackTotalProductionKg = farmers.reduce((total, item) => total + item.productionKg, 0);
-  const fallbackOngoingProjects = projects.filter((item) => item.status === "ONGOING").length;
+  const fallbackCompletedProjects = projects.filter((item) => item.status === "COMPLETED").length;
+  const fallbackProjectCost = projects.reduce((total, item) => total + item.budget, 0);
 
   return (
     <section className="space-y-6">
@@ -58,14 +59,15 @@ const DashboardPage = () => {
         <p className="text-sm text-muted-foreground">Real-time view of fisheries operations and blue economy indicators.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Total Farmers" value={summaryData?.summary.totalFarmers ?? fallbackTotalFarmers} />
         <StatCard label="Active Licenses" value={summaryData?.summary.activeLicenses ?? fallbackActiveLicenses} />
         <StatCard
           label="Total Production (Kg)"
           value={(summaryData?.summary.totalProductionKg ?? fallbackTotalProductionKg).toLocaleString()}
         />
-        <StatCard label="Ongoing Projects" value={summaryData?.summary.ongoingProjects ?? fallbackOngoingProjects} />
+        <StatCard label="Completed Projects" value={fallbackCompletedProjects} />
+        <StatCard label="Project Cost (KES)" value={fallbackProjectCost.toLocaleString()} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -76,8 +78,17 @@ const DashboardPage = () => {
             className="aspect-[16/8] w-full object-cover"
           />
           <div className="p-4">
-            <h2 className="text-base font-semibold">Lake Fisheries Operations</h2>
-            <p className="mt-1 text-sm text-muted-foreground">BMU activity, licensing, boats, and fisherman records.</p>
+            <h2 className="text-base font-semibold">Lakefront Fisheries Development</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Sustainable capture fisheries management along Lake Victoria shorelines.
+            </p>
+            <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+              <li>Landing site development and rehabilitation</li>
+              <li>Fisheries regulation enforcement with BMUs</li>
+              <li>Fish quality assurance and post-harvest handling</li>
+              <li>Fish stock and ecosystem health monitoring</li>
+              <li>Fisher livelihood support and value addition</li>
+            </ul>
           </div>
         </article>
         <article className="overflow-hidden rounded-lg border bg-card">
@@ -87,8 +98,17 @@ const DashboardPage = () => {
             className="aspect-[16/8] w-full object-cover"
           />
           <div className="p-4">
-            <h2 className="text-base font-semibold">Aquaculture & Data Collection</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Production, capture fisheries, and analytics across Migori.</p>
+            <h2 className="text-base font-semibold">Blue Economy</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Sustainable aquatic resource use for growth, jobs, and conservation.
+            </p>
+            <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+              <li>Water transport and logistics development</li>
+              <li>Ecotourism and recreation promotion</li>
+              <li>Aquatic ecosystem and biodiversity conservation</li>
+              <li>Climate-resilient resource utilization</li>
+              <li>Innovation and blue value-chain investment</li>
+            </ul>
           </div>
         </article>
         <article className="overflow-hidden rounded-lg border bg-card">
@@ -98,8 +118,17 @@ const DashboardPage = () => {
             className="aspect-[16/8] w-full object-cover"
           />
           <div className="p-4">
-            <h2 className="text-base font-semibold">Fish Ponds & Extension</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Farm status, inspections, production tracking, and officer support.</p>
+            <h2 className="text-base font-semibold">Aquaculture Development</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Expansion of fish farming for food security, incomes, and climate resilience.
+            </p>
+            <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+              <li>Fish pond and cage culture development</li>
+              <li>Farmer training and capacity building</li>
+              <li>Fingerling production and distribution</li>
+              <li>Feed production and nutrition management</li>
+              <li>Aquaculture data systems and production monitoring</li>
+            </ul>
           </div>
         </article>
       </div>

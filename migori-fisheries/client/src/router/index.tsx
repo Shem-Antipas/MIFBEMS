@@ -56,6 +56,9 @@ const AppRouter = () => {
             <Route path="/farmers" element={<PageLayout><FarmersPage /></PageLayout>} />
             <Route path="/capture-fisheries" element={<PageLayout><CaptureFisheriesPage /></PageLayout>} />
             <Route path="/projects" element={<PageLayout><ProjectsPage /></PageLayout>} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]} />}>
             <Route path="/inspections" element={<PageLayout><InspectionsPage /></PageLayout>} />
           </Route>
 
@@ -76,7 +79,7 @@ const AppRouter = () => {
             <Route path="/settings" element={<PageLayout><SettingsPage /></PageLayout>} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
+          <Route element={<ProtectedRoute allowedRoles={["ADMIN", "DIRECTOR"]} />}>
             <Route path="/admin/backups" element={<PageLayout><BackupsPage /></PageLayout>} />
           </Route>
 

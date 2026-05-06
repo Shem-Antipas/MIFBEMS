@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import type { AxiosError } from "axios";
@@ -9,6 +9,7 @@ import StatusBadge from "@/components/shared/StatusBadge";
 import { usersApi } from "@/api/users";
 import { useAuthStore } from "@/store/authStore";
 import { MIGORI_SUBCOUNTIES } from "@/lib/locationData";
+import { getSearchEmptyLabel } from "@/lib/search";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatRole } from "@/lib/utils";
@@ -21,6 +22,16 @@ type UserForm = {
   password: string;
   role: Role;
   subCounty?: string;
+};
+
+type ValidationIssue = {
+  path: string;
+  message: string;
+};
+
+type ApiErrorResponse = {
+  error?: string;
+  issues?: ValidationIssue[];
 };
 
 const roles: Role[] = ["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "FARMER", "ADMIN"];
@@ -42,6 +53,7 @@ const userExportColumns = [
 
 const UsersPage = () => {
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, AssignmentDraft>>({});
+  const [searchTerm, setSearchTerm] = useState("");
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
   const canManageUsers = currentUser?.role === "DIRECTOR" || currentUser?.role === "ADMIN";
@@ -73,6 +85,13 @@ const UsersPage = () => {
 
   const deactivateUser = useMutation({
     mutationFn: usersApi.deactivate,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["users"] });
+    }
+  });
+
+  const deleteUser = useMutation({
+    mutationFn: usersApi.remove,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["users"] });
     }
@@ -121,23 +140,44 @@ const UsersPage = () => {
       });
       toast.success("User assignment updated");
     } catch (error) {
-      const message =
-        (error as AxiosError<{ error?: string }>).response?.data?.error ??
-        "Failed to update user assignment.";
+      const response = (error as AxiosError<ApiErrorResponse>).response?.data;
+      const firstIssue = response?.issues?.[0];
+      const message = firstIssue
+        ? `${firstIssue.path || "Field"}: ${firstIssue.message}`
+        : response?.error ?? "Failed to update user assignment.";
       toast.error(message);
     }
   };
+
+  const filteredUsers = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return users;
+
+    return users.filter((user) =>
+      [user.name, user.email, user.role, user.subCounty ?? "county-wide", user.isActive ? "active" : "inactive"].some((value) =>
+        value.toLowerCase().includes(term)
+      )
+    );
+  }, [searchTerm, users]);
 
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">System Users</h1>
-        <ExportButton
-          filename="system-users"
-          sheetName="Users"
-          columns={userExportColumns}
-          rows={users}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search user..."
+            className="w-56"
+          />
+          <ExportButton
+            filename="system-users"
+            sheetName="Users"
+            columns={userExportColumns}
+            rows={filteredUsers}
+          />
+        </div>
       </div>
 
       {canManageUsers ? (
@@ -162,9 +202,11 @@ const UsersPage = () => {
                 subCounty: "Suna East"
               });
             } catch (error) {
-              const message =
-                (error as AxiosError<{ error?: string }>).response?.data?.error ??
-                "Failed to create user.";
+              const response = (error as AxiosError<ApiErrorResponse>).response?.data;
+              const firstIssue = response?.issues?.[0];
+              const message = firstIssue
+                ? `${firstIssue.path || "Field"}: ${firstIssue.message}`
+                : response?.error ?? "Failed to create user.";
               toast.error(message);
             }
           })}
@@ -227,7 +269,7 @@ const UsersPage = () => {
 
       <DataTable
         headers={["Name", "Email", "Role", "Operating Area", "Status", "Assignment", "Actions"]}
-        rows={users.map((user) => {
+        rows={filteredUsers.map((user) => {
           const draft = getDraft(user);
           const draftNeedsArea = rolesWithOperationalArea.includes(draft.role);
           const changed =
@@ -284,32 +326,64 @@ const UsersPage = () => {
             ) : (
               "-"
             ),
-            canManageUsers && user.isActive && user.id !== currentUser?.id ? (
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                disabled={deactivateUser.isPending}
-                onClick={async () => {
-                  try {
-                    await deactivateUser.mutateAsync(user.id);
-                    toast.success("User deactivated");
-                  } catch (error) {
-                    const message =
-                      (error as AxiosError<{ error?: string }>).response?.data?.error ??
-                      "Failed to deactivate user.";
-                    toast.error(message);
-                  }
-                }}
-              >
-                Deactivate
-              </Button>
+            canManageUsers && user.id !== currentUser?.id ? (
+              <div className="flex gap-2">
+                {user.isActive ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    disabled={deactivateUser.isPending}
+                    onClick={async () => {
+                      try {
+                        await deactivateUser.mutateAsync(user.id);
+                        toast.success("User deactivated");
+                      } catch (error) {
+                        const message =
+                          (error as AxiosError<{ error?: string }>).response?.data?.error ??
+                          "Failed to deactivate user.";
+                        toast.error(message);
+                      }
+                    }}
+                  >
+                    Deactivate
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={deleteUser.isPending}
+                  onClick={async () => {
+                    if (!window.confirm(`Delete user ${user.name}? This cannot be undone.`)) {
+                      return;
+                    }
+
+                    try {
+                      await deleteUser.mutateAsync(user.id);
+                      toast.success("User deleted");
+                    } catch (error) {
+                      const message =
+                        (error as AxiosError<{ error?: string }>).response?.data?.error ??
+                        "Failed to delete user.";
+                      toast.error(message);
+                    }
+                  }}
+                >
+                  Delete
+                </Button>
+              </div>
             ) : (
               "-"
             )
           ];
         })}
-        emptyLabel={isLoading ? "Loading users..." : "No users found."}
+        emptyLabel={getSearchEmptyLabel({
+          searchTerm,
+          isLoading,
+          loadingLabel: "Loading users...",
+          emptyLabel: "No users found."
+        })}
       />
     </section>
   );

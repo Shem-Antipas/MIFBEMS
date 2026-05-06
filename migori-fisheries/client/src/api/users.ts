@@ -30,5 +30,8 @@ export const usersApi = {
   async deactivate(id: string): Promise<User> {
     const { data } = await apiClient.patch<{ data: User }>(`/users/${id}/deactivate`);
     return data.data;
+  },
+  async remove(id: string): Promise<void> {
+    await apiClient.delete(`/users/${id}`);
   }
 };

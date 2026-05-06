@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, useWatch } from "react-hook-form";
 import type { AxiosError } from "axios";
+import { Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import DataTable from "@/components/shared/DataTable";
 import ExportButton from "@/components/shared/ExportButton";
@@ -18,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ExcelColumn } from "@/lib/exportToExcel";
+import { getSearchEmptyLabel } from "@/lib/search";
 import type { BlueEconomyProject } from "@/types";
 
 type ProjectStatus = BlueEconomyProject["status"];
@@ -68,6 +70,35 @@ type ProjectForm = {
 const formatStatus = (status: ProjectStatus): string =>
   projectStatusOptions.find((option) => option.value === status)?.label ?? status;
 
+const FormField = ({ label, children, className = "" }: { label: string; children: ReactNode; className?: string }) => (
+  <label className={`block space-y-1 ${className}`}>
+    <span className="text-sm font-medium text-foreground">{label}</span>
+    {children}
+  </label>
+);
+
+const AttachmentField = ({
+  label,
+  children,
+  helper
+}: {
+  label: string;
+  children: ReactNode;
+  helper?: ReactNode;
+}) => (
+  <div>
+    <label className="mb-1 flex items-center gap-2 text-sm font-medium">
+      <Paperclip className="h-4 w-4 text-primary" aria-hidden="true" />
+      {label}
+    </label>
+    <div className="relative">
+      <Paperclip className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+      {children}
+    </div>
+    {helper}
+  </div>
+);
+
 const projectExportColumns = [
   { header: "Project Name/Title", value: "name" },
   { header: "Project Code (Budget Line)", value: (project: BlueEconomyProject) => project.budgetLine ?? "" },
@@ -92,6 +123,7 @@ const ProjectsPage = () => {
 
   const [selectedImageFiles, setSelectedImageFiles] = useState<File[]>([]);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects"],
@@ -185,9 +217,30 @@ const ProjectsPage = () => {
 
   const [statusDrafts, setStatusDrafts] = useState<Record<string, ProjectStatus>>({});
 
+  const filteredProjects = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return projects;
+
+    return projects.filter((project) =>
+      [
+        project.projectCode,
+        project.name,
+        project.budgetLine ?? "",
+        project.category,
+        project.description,
+        project.subCounty,
+        project.ward,
+        project.status,
+        project.funder,
+        String(project.budget),
+        String(project.completionPercent)
+      ].some((value) => value.toLowerCase().includes(term))
+    );
+  }, [projects, searchTerm]);
+
   const rows = useMemo(
     () =>
-      projects.map((project) => {
+      filteredProjects.map((project) => {
         const selectedStatus = statusDrafts[project.id] ?? project.status;
         const gps =
           project.latitude != null && project.longitude != null
@@ -277,34 +330,44 @@ const ProjectsPage = () => {
           )
         ];
       }),
-    [projects, statusDrafts, canUpdateProjectStatus, canDeleteProject, updateProject, deleteProject]
+    [filteredProjects, statusDrafts, canUpdateProjectStatus, canDeleteProject, updateProject, deleteProject]
   );
 
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Blue Economy Projects</h1>
-        <ExportButton
-          filename="blue-economy-projects"
-          sheetName="Projects"
-          columns={projectExportColumns}
-          rows={projects}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search projects..."
+            className="w-56"
+          />
+          <ExportButton
+            filename="blue-economy-projects"
+            sheetName="Projects"
+            columns={projectExportColumns}
+            rows={filteredProjects}
+          />
+        </div>
       </div>
 
       {canCreateProject ? (
         <div className="rounded-lg border bg-card p-4">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-[260px]">
-              <label className="mb-1 block text-sm font-medium">Bulk import projects (Excel/CSV)</label>
-              <Input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={(event) => {
-                  const file = event.target.files?.[0] ?? null;
-                  setImportFile(file);
-                }}
-              />
+              <AttachmentField label="Bulk import projects (Excel/CSV)">
+                <Input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  className="pl-9"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    setImportFile(file);
+                  }}
+                />
+              </AttachmentField>
             </div>
             <Button
               type="button"
@@ -389,84 +452,118 @@ const ProjectsPage = () => {
             }
           })}
         >
-          <Input placeholder="Project Name/Title" {...register("name", { required: true })} />
-          <Input placeholder="Project Code (Budget Line)" {...register("budgetLine")} />
-          <Input type="number" step="0.1" placeholder="Approved Project Cost (KES)" {...register("budget", { valueAsNumber: true })} />
+          <FormField label="Project Name or Title">
+            <Input placeholder="e.g. Procurement of fingerlings" {...register("name", { required: true })} />
+          </FormField>
+          <FormField label="Project Code or Budget Line">
+            <Input placeholder="Budget line code, where available" {...register("budgetLine")} />
+          </FormField>
+          <FormField label="Approved Project Cost (KES)">
+            <Input type="number" step="0.1" placeholder="0" {...register("budget", { valueAsNumber: true })} />
+          </FormField>
 
-          <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("category")}>
-            {projectCategoryOptions.map((category) => (
-              <option key={category.value} value={category.value}>
-                {category.label}
-              </option>
-            ))}
-          </select>
+          <FormField label="Project Category">
+            <select className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("category")}>
+              {projectCategoryOptions.map((category) => (
+                <option key={category.value} value={category.value}>
+                  {category.label}
+                </option>
+              ))}
+            </select>
+          </FormField>
 
-          <select
-            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-            {...register("subCounty", {
-              onChange: (event) => {
-                const nextSubCounty = event.target.value;
-                if (nextSubCounty === COUNTY_WIDE) {
-                  setValue("ward", ALL_WARDS);
-                  return;
+          <FormField label="Sub-County">
+            <select
+              className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              {...register("subCounty", {
+                onChange: (event) => {
+                  const nextSubCounty = event.target.value;
+                  if (nextSubCounty === COUNTY_WIDE) {
+                    setValue("ward", ALL_WARDS);
+                    return;
+                  }
+
+                  if (isMigoriSubCounty(nextSubCounty)) {
+                    setValue("ward", ALL_WARDS);
+                  }
                 }
+              })}
+            >
+              {PROJECT_SUBCOUNTY_OPTIONS.map((subCounty) => (
+                <option key={subCounty} value={subCounty}>
+                  {subCounty}
+                </option>
+              ))}
+            </select>
+          </FormField>
 
-                if (isMigoriSubCounty(nextSubCounty)) {
-                  setValue("ward", ALL_WARDS);
-                }
-              }
-            })}
-          >
-            {PROJECT_SUBCOUNTY_OPTIONS.map((subCounty) => (
-              <option key={subCounty} value={subCounty}>
-                {subCounty}
-              </option>
-            ))}
-          </select>
+          <FormField label="Ward">
+            <select className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("ward", { required: true })}>
+              {availableWards.map((ward) => (
+                <option key={ward} value={ward}>
+                  {ward}
+                </option>
+              ))}
+            </select>
+          </FormField>
 
-          <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("ward", { required: true })}>
-            {availableWards.map((ward) => (
-              <option key={ward} value={ward}>
-                {ward}
-              </option>
-            ))}
-          </select>
+          <FormField label="Project Start Date">
+            <Input type="date" {...register("startDate", { required: true })} />
+          </FormField>
+          <FormField label="Completion Percentage">
+            <Input type="number" min={0} max={100} step="1" placeholder="0 to 100" {...register("completionPercent", { valueAsNumber: true })} />
+          </FormField>
 
-          <Input type="date" {...register("startDate", { required: true })} />
-          <Input type="number" min={0} max={100} step="1" placeholder="% Completion" {...register("completionPercent", { valueAsNumber: true })} />
+          <FormField label="Project Status">
+            <select className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("status")}>
+              {projectStatusOptions.map((status) => (
+                <option key={status.value} value={status.value}>
+                  {status.label}
+                </option>
+              ))}
+            </select>
+          </FormField>
 
-          <select className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("status")}>
-            {projectStatusOptions.map((status) => (
-              <option key={status.value} value={status.value}>
-                {status.label}
-              </option>
-            ))}
-          </select>
-
-          <Input type="number" step="0.00001" placeholder={`Latitude (${wardLocation.lat.toFixed(5)})`} {...register("latitude", { valueAsNumber: true })} />
-          <Input type="number" step="0.00001" placeholder={`Longitude (${wardLocation.lng.toFixed(5)})`} {...register("longitude", { valueAsNumber: true })} />
-          <Input placeholder="Funder" {...register("funder", { required: true })} />
-          <Input className="md:col-span-3" placeholder="Project description" {...register("description", { required: true })} />
+          <FormField label="Latitude">
+            <Input type="number" step="0.00001" placeholder={`Default ${wardLocation.lat.toFixed(5)}`} {...register("latitude", { valueAsNumber: true })} />
+          </FormField>
+          <FormField label="Longitude">
+            <Input type="number" step="0.00001" placeholder={`Default ${wardLocation.lng.toFixed(5)}`} {...register("longitude", { valueAsNumber: true })} />
+          </FormField>
+          <FormField label="Funder">
+            <Input placeholder="Funding institution or source" {...register("funder", { required: true })} />
+          </FormField>
+          <FormField label="Project Description" className="md:col-span-3">
+            <Input placeholder="Brief project description" {...register("description", { required: true })} />
+          </FormField>
 
           <div className="md:col-span-3">
-            <label className="mb-1 block text-sm font-medium">Project images (attach files)</label>
-            <Input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(event) => {
-                const files = Array.from(event.target.files ?? []);
-                setSelectedImageFiles(files);
-              }}
-            />
-            {selectedImageFiles.length > 0 ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Attached: {selectedImageFiles.map((file) => file.name).join(", ")}
-              </p>
-            ) : null}
+            <AttachmentField
+              label="Project images (attach files)"
+              helper={
+                selectedImageFiles.length > 0 ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Attached: {selectedImageFiles.map((file) => file.name).join(", ")}
+                  </p>
+                ) : null
+              }
+            >
+              <Input
+                type="file"
+                accept="image/*"
+                multiple
+                className="pl-9"
+                onChange={(event) => {
+                  const files = Array.from(event.target.files ?? []);
+                  setSelectedImageFiles(files);
+                }}
+              />
+            </AttachmentField>
           </div>
 
-          <Input type="date" {...register("endDate")} />
+          <FormField label="Project End Date">
+            <Input type="date" {...register("endDate")} />
+          </FormField>
 
           <div className="flex justify-end md:col-span-3">
             <Button disabled={createProject.isPending} type="submit">
@@ -490,7 +587,12 @@ const ProjectsPage = () => {
           "Actions"
         ]}
         rows={rows}
-        emptyLabel={isLoading ? "Loading projects..." : "No projects found."}
+        emptyLabel={getSearchEmptyLabel({
+          searchTerm,
+          isLoading,
+          loadingLabel: "Loading projects...",
+          emptyLabel: "No projects found."
+        })}
       />
     </section>
   );

@@ -2,6 +2,7 @@ import { InspectionResult } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler, HttpError } from "../lib/http.js";
+import { MIGORI_SUBCOUNTIES, isValidWardForSubCounty } from "../lib/locationData.js";
 import { prisma } from "../lib/prisma.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
@@ -9,17 +10,47 @@ import { auditLog } from "../middleware/auditLog.js";
 import { validate } from "../middleware/validate.js";
 const router = Router();
 const idParamSchema = z.object({ id: z.string().min(5) });
-const createInspectionSchema = z.object({
-    farmName: z.string().min(2),
-    subCounty: z.string().min(2),
+const inspectionFieldsSchema = z.object({
+    extensionOfficerName: z.string().trim().min(1, "Extension officer name is required"),
+    extensionOfficerPhone: z.string().trim().min(1, "Phone number is required"),
+    farmName: z.string().trim().min(1, "Farmer name is required"),
+    farmerPhoneNumber: z.string().trim().min(1).optional(),
+    subCounty: z.enum(MIGORI_SUBCOUNTIES),
+    ward: z.string().trim().min(1, "Ward is required"),
+    extensionTopics: z.array(z.string().trim().min(1)).min(1, "At least one extension topic is required"),
+    feedback: z.string().trim().optional(),
+    challenges: z.string().trim().optional(),
     date: z.coerce.date(),
-    result: z.enum(InspectionResult),
-    notes: z.string().optional()
+    result: z.enum(InspectionResult).optional(),
+    notes: z.string().trim().optional()
 });
-const updateInspectionSchema = createInspectionSchema.partial();
+const createInspectionSchema = inspectionFieldsSchema.superRefine((value, ctx) => {
+    if (!isValidWardForSubCounty(value.subCounty, value.ward)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["ward"],
+            message: "Selected ward does not belong to the selected sub-county"
+        });
+    }
+});
+const updateInspectionSchema = inspectionFieldsSchema.partial().superRefine((value, ctx) => {
+    if (value.subCounty && value.ward && !isValidWardForSubCounty(value.subCounty, value.ward)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["ward"],
+            message: "Selected ward does not belong to the selected sub-county"
+        });
+    }
+});
 router.use(authenticate);
-router.get("/", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST"]), asyncHandler(async (req, res) => {
-    const where = req.user?.role === "FISHERIES_OFFICER" ? { subCounty: req.user.subCounty ?? undefined } : {};
+router.get("/", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]), asyncHandler(async (req, res) => {
+    if (!req.user) {
+        throw new HttpError(401, "Unauthorized");
+    }
+    if (req.user.role === "FISHERIES_OFFICER" && !req.user.subCounty) {
+        throw new HttpError(403, "Your account is not assigned to a sub-county");
+    }
+    const where = req.user.role === "FISHERIES_OFFICER" ? { subCounty: req.user.subCounty } : {};
     const inspections = await prisma.inspection.findMany({
         where,
         include: { officer: { select: { id: true, name: true, subCounty: true } } },
@@ -34,9 +65,13 @@ router.post("/", validate({ body: createInspectionSchema }), authorize(["DIRECTO
         throw new HttpError(401, "Unauthorized");
     }
     const payload = req.body;
+    if (req.user.role === "FISHERIES_OFFICER" && req.user.subCounty && payload.subCounty !== req.user.subCounty) {
+        throw new HttpError(403, "You can only create extension records in your sub-county");
+    }
     const inspection = await prisma.inspection.create({
         data: {
             ...payload,
+            result: payload.result ?? InspectionResult.PENDING,
             officerId: req.user.id
         }
     });
@@ -54,6 +89,14 @@ router.put("/:id", validate({ params: idParamSchema, body: updateInspectionSchem
         throw new HttpError(403, "You can only update inspections in your sub-county");
     }
     const payload = req.body;
+    const targetSubCounty = payload.subCounty ?? inspection.subCounty;
+    const targetWard = payload.ward ?? inspection.ward;
+    if (!isValidWardForSubCounty(targetSubCounty, targetWard)) {
+        throw new HttpError(400, "Selected ward does not belong to the selected sub-county");
+    }
+    if (req.user?.role === "FISHERIES_OFFICER" && req.user.subCounty && targetSubCounty !== req.user.subCounty) {
+        throw new HttpError(403, "You can only update extension records in your sub-county");
+    }
     const updated = await prisma.inspection.update({ where: { id }, data: payload });
     res.status(200).json({ data: updated });
 }));

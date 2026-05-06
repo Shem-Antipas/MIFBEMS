@@ -19,6 +19,8 @@ export type CreateCaptureFisheriesPayload = Pick<
   | "latitude"
   | "longitude"
   | "species"
+  | "activeCages"
+  | "inactiveCages"
   | "catchKg"
   | "value"
   | "month"
@@ -41,5 +43,12 @@ export const captureFisheriesApi = {
       status
     });
     return data.data;
+  },
+  async update(id: string, payload: Partial<CreateCaptureFisheriesPayload>): Promise<CaptureFisheriesRecord> {
+    const { data } = await apiClient.put<{ data: CaptureFisheriesRecord }>(`/capture-fisheries/${id}`, payload);
+    return data.data;
+  },
+  async remove(id: string): Promise<void> {
+    await apiClient.delete(`/capture-fisheries/${id}`);
   }
 };

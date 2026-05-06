@@ -5,6 +5,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Legend,
   Pie,
   PieChart,
@@ -18,6 +19,7 @@ import StatCard from "@/components/shared/StatCard";
 import DataTable from "@/components/shared/DataTable";
 import StatusBadge from "@/components/shared/StatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { captureFisheriesApi } from "@/api/captureFisheries";
 import { inspectionsApi } from "@/api/inspections";
 import { projectsApi } from "@/api/projects";
@@ -26,6 +28,7 @@ import { useFarmers } from "@/hooks/useFarmers";
 import { useLicenses } from "@/hooks/useLicenses";
 import { MIGORI_SUBCOUNTIES } from "@/lib/locationData";
 import type { ExcelColumn } from "@/lib/exportToExcel";
+import { getSearchEmptyLabel } from "@/lib/search";
 
 type ReportExportRow = {
   section: string;
@@ -77,6 +80,9 @@ const formatNumber = (value: number, maximumFractionDigits = 0): string =>
 
 const formatKg = (value: number): string => `${formatNumber(value)} kg`;
 const formatTooltipKg = (value: unknown): string => formatKg(Number(value ?? 0));
+const getShare = (value: number, total: number): number => (total > 0 ? (value / total) * 100 : 0);
+const formatDisplayValue = (value: number, total: number, mode: "FIGURE" | "PERCENT", suffix = ""): string =>
+  mode === "PERCENT" ? `${formatNumber(getShare(value, total), 1)}%` : `${formatNumber(value)}${suffix}`;
 
 const ChartCard = ({ title, children }: { title: string; children: ReactNode }) => (
   <Card>
@@ -100,6 +106,8 @@ const countBy = <T,>(items: T[], getKey: (item: T) => string | null | undefined)
 
 const ReportsPage = () => {
   const [selectedSubCounty, setSelectedSubCounty] = useState<string>("All");
+  const [valueDisplayMode, setValueDisplayMode] = useState<"FIGURE" | "PERCENT">("FIGURE");
+  const [searchTerm, setSearchTerm] = useState("");
   const summarySubCounty = selectedSubCounty === "All" ? undefined : selectedSubCounty;
 
   const { data: reportData, isLoading: isReportLoading } = useQuery({
@@ -189,6 +197,23 @@ const ReportsPage = () => {
     });
   }, [captureRecords, farmers, inspections, licenses, projects, selectedSubCounty]);
 
+  const filteredSubCountyRows = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return subCountyRows;
+
+    return subCountyRows.filter((row) =>
+      [
+        row.subCounty,
+        String(row.farmers),
+        String(row.productionKg),
+        String(row.licenses),
+        String(row.validLicenses),
+        String(row.projects),
+        String(row.inspections)
+      ].some((value) => value.toLowerCase().includes(term))
+    );
+  }, [searchTerm, subCountyRows]);
+
   const totalProductionKg = subCountyRows.reduce((total, row) => total + row.productionKg, 0);
   const activeLicenses = filteredLicenses.filter((license) => license.status === "VALID").length;
   const expiredLicenses = filteredLicenses.filter((license) => license.status === "EXPIRED").length;
@@ -199,6 +224,15 @@ const ReportsPage = () => {
   const farmerStatusRows = useMemo(() => countBy(filteredFarmers, (farmer) => farmer.status), [filteredFarmers]);
   const projectRows = useMemo(() => countBy(filteredProjects, (project) => project.status), [filteredProjects]);
   const inspectionRows = useMemo(() => countBy(filteredInspections, (inspection) => inspection.result), [filteredInspections]);
+
+  const filteredLicenseRows = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return licenseRows;
+
+    return licenseRows.filter((row) =>
+      [row.name, String(row.value)].some((value) => value.toLowerCase().includes(term))
+    );
+  }, [licenseRows, searchTerm]);
 
   const exportRows = useMemo<ReportExportRow[]>(() => {
     const summaryRows: ReportExportRow[] = [
@@ -257,6 +291,20 @@ const ReportsPage = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search report tables..."
+            className="w-56"
+          />
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={valueDisplayMode}
+            onChange={(event) => setValueDisplayMode(event.target.value as "FIGURE" | "PERCENT")}
+          >
+            <option value="FIGURE">Display: Figure</option>
+            <option value="PERCENT">Display: Percent</option>
+          </select>
           <select
             className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={selectedSubCounty}
@@ -295,7 +343,20 @@ const ReportsPage = () => {
                 <XAxis dataKey="subCounty" fontSize={11} interval={0} angle={-20} textAnchor="end" height={60} />
                 <YAxis fontSize={11} tickFormatter={(value: number) => formatNumber(value / 1000, 1)} />
                 <Tooltip formatter={formatTooltipKg} />
-                <Bar dataKey="productionKg" name="Production" fill="#0f766e" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="productionKg" name="Production" fill="#0f766e" radius={[6, 6, 0, 0]}>
+                  <LabelList
+                    dataKey="productionKg"
+                    position="top"
+                    formatter={(value) =>
+                      formatDisplayValue(
+                        Number(value),
+                        subCountyRows.reduce((sum, row) => sum + row.productionKg, 0),
+                        valueDisplayMode,
+                        valueDisplayMode === "FIGURE" ? " kg" : ""
+                      )
+                    }
+                  />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -307,7 +368,20 @@ const ReportsPage = () => {
           {licenseRows.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={licenseRows} dataKey="value" nameKey="name" innerRadius={54} outerRadius={88}>
+                <Pie
+                  data={licenseRows}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={54}
+                  outerRadius={88}
+                  label={(entry) =>
+                    formatDisplayValue(
+                      Number(entry?.value ?? 0),
+                      licenseRows.reduce((sum, row) => sum + row.value, 0),
+                      valueDisplayMode
+                    )
+                  }
+                >
                   {licenseRows.map((entry) => (
                     <Cell key={entry.name} fill={statusColors[entry.name] ?? chartColors[0]} />
                   ))}
@@ -327,7 +401,20 @@ const ReportsPage = () => {
           {farmerStatusRows.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={farmerStatusRows} dataKey="value" nameKey="name" innerRadius={54} outerRadius={88}>
+                <Pie
+                  data={farmerStatusRows}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={54}
+                  outerRadius={88}
+                  label={(entry) =>
+                    formatDisplayValue(
+                      Number(entry?.value ?? 0),
+                      farmerStatusRows.reduce((sum, row) => sum + row.value, 0),
+                      valueDisplayMode
+                    )
+                  }
+                >
                   {farmerStatusRows.map((entry) => (
                     <Cell key={entry.name} fill={statusColors[entry.name] ?? chartColors[1]} />
                   ))}
@@ -353,6 +440,17 @@ const ReportsPage = () => {
                   {projectRows.map((entry) => (
                     <Cell key={entry.name} fill={statusColors[entry.name] ?? chartColors[2]} />
                   ))}
+                  <LabelList
+                    dataKey="value"
+                    position="right"
+                    formatter={(value) =>
+                      formatDisplayValue(
+                        Number(value),
+                        projectRows.reduce((sum, row) => sum + row.value, 0),
+                        valueDisplayMode
+                      )
+                    }
+                  />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -373,6 +471,17 @@ const ReportsPage = () => {
                   {inspectionRows.map((entry) => (
                     <Cell key={entry.name} fill={statusColors[entry.name] ?? chartColors[3]} />
                   ))}
+                  <LabelList
+                    dataKey="value"
+                    position="right"
+                    formatter={(value) =>
+                      formatDisplayValue(
+                        Number(value),
+                        inspectionRows.reduce((sum, row) => sum + row.value, 0),
+                        valueDisplayMode
+                      )
+                    }
+                  />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -384,7 +493,7 @@ const ReportsPage = () => {
 
       <DataTable
         headers={["Sub-County", "Farmers", "Production", "Licenses", "Valid Licenses", "Projects", "Inspections"]}
-        rows={subCountyRows.map((row) => [
+        rows={filteredSubCountyRows.map((row) => [
           row.subCounty,
           formatNumber(row.farmers),
           formatKg(row.productionKg),
@@ -393,13 +502,23 @@ const ReportsPage = () => {
           formatNumber(row.projects),
           formatNumber(row.inspections)
         ])}
-        emptyLabel="No report records available."
+        emptyLabel={getSearchEmptyLabel({
+          searchTerm,
+          isLoading,
+          loadingLabel: "Loading report records...",
+          emptyLabel: "No report records available."
+        })}
       />
 
       <DataTable
         headers={["License Status", "Count"]}
-        rows={licenseRows.map((row) => [<StatusBadge key={row.name} status={row.name} />, formatNumber(row.value)])}
-        emptyLabel="No license status records available."
+        rows={filteredLicenseRows.map((row) => [<StatusBadge key={row.name} status={row.name} />, formatNumber(row.value)])}
+        emptyLabel={getSearchEmptyLabel({
+          searchTerm,
+          isLoading,
+          loadingLabel: "Loading license status records...",
+          emptyLabel: "No license status records available."
+        })}
       />
     </section>
   );
