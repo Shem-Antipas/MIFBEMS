@@ -1,0 +1,12 @@
+ALTER TABLE "CageProductionRecord" ADD COLUMN "bmuLocation" TEXT;
+ALTER TABLE "CageProductionRecord" ADD COLUMN "cageIdentifier" TEXT;
+ALTER TABLE "CageProductionRecord" ADD COLUMN "fishSpecies" TEXT NOT NULL DEFAULT 'Tilapia';
+ALTER TABLE "CageProductionRecord" ADD COLUMN "stockingDate" TIMESTAMP(3);
+ALTER TABLE "CageProductionRecord" ADD COLUMN "feedTypes" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "CageProductionRecord" ADD COLUMN "feedQuantityKg" DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE "CageProductionRecord" ADD COLUMN "averageFishWeightKg" DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE "CageProductionRecord" ADD COLUMN "mortalityPieces" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "CageProductionRecord" ADD COLUMN "numberHarvestedPieces" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "CageProductionRecord" ADD COLUMN "harvestDate" TIMESTAMP(3);
+ALTER TABLE "CageProductionRecord" ADD COLUMN "extensionOfficerName" TEXT;
+ALTER TABLE "CageProductionRecord" ADD COLUMN "remarks" TEXT;

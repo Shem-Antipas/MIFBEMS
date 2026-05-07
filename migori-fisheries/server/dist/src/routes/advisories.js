@@ -14,7 +14,8 @@ const createAdvisorySchema = z.object({
     message: z.string().min(5),
     type: z.enum(AdvisoryType),
     fromName: z.string().min(2),
-    subCounty: z.string().min(2).optional()
+    subCounty: z.string().min(2).optional(),
+    targetUserId: z.string().min(5).optional()
 });
 const updateAdvisorySchema = createAdvisorySchema.partial();
 router.use(authenticate);
@@ -22,11 +23,19 @@ router.get("/", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALY
     if (!req.user) {
         throw new HttpError(401, "Unauthorized");
     }
-    const where = req.user.role === "FISHERIES_OFFICER" || req.user.role === "FARMER"
+    const where = req.user.role === "FARMER"
         ? {
-            OR: [{ subCounty: null }, { subCounty: req.user.subCounty ?? undefined }]
+            OR: [
+                { targetUserId: req.user.id },
+                { targetUserId: null, subCounty: null },
+                { targetUserId: null, subCounty: req.user.subCounty ?? "__no_farmer_subcounty__" }
+            ]
         }
-        : {};
+        : req.user.role === "FISHERIES_OFFICER"
+            ? {
+                OR: [{ subCounty: null }, { subCounty: req.user.subCounty ?? "__no_officer_subcounty__" }]
+            }
+            : {};
     const advisories = await prisma.advisory.findMany({
         where,
         orderBy: { createdAt: "desc" }
@@ -37,7 +46,16 @@ router.post("/", validate({ body: createAdvisorySchema }), authorize(["DIRECTOR"
     resolveSubCounty: (req) => req.body.subCounty
 }), auditLog("ADVISORY"), asyncHandler(async (req, res) => {
     const payload = req.body;
-    const advisory = await prisma.advisory.create({ data: payload });
+    const subCounty = req.user?.role === "FISHERIES_OFFICER" ? req.user.subCounty : payload.subCounty;
+    if (req.user?.role === "FISHERIES_OFFICER" && !subCounty) {
+        throw new HttpError(403, "Your account is not assigned to a sub-county");
+    }
+    const advisory = await prisma.advisory.create({
+        data: {
+            ...payload,
+            subCounty
+        }
+    });
     res.status(201).json({ data: advisory });
 }));
 router.put("/:id", validate({ params: idParamSchema, body: updateAdvisorySchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {

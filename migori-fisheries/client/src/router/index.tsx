@@ -58,8 +58,16 @@ const AppRouter = () => {
             <Route path="/projects" element={<PageLayout><ProjectsPage /></PageLayout>} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]} />}>
+          <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "FARMER"]} />}>
             <Route path="/inspections" element={<PageLayout><InspectionsPage /></PageLayout>} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST"]} />}>
+            <Route path="/advisories" element={<PageLayout><AdvisoriesPage /></PageLayout>} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]} />}>
+            <Route path="/queries" element={<PageLayout><QueriesPage /></PageLayout>} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "FISHERIES_OFFICER", "DATA_ANALYST", "ADMIN"]} />}>

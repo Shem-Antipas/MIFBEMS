@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import DataTable from "@/components/shared/DataTable";
 import ExportButton from "@/components/shared/ExportButton";
 import StatusBadge from "@/components/shared/StatusBadge";
-import { projectsApi, type CreateProjectPayload } from "@/api/projects";
+import { projectsApi, type CreateProjectPayload, type UpdateProjectPayload } from "@/api/projects";
 import { useAuthStore } from "@/store/authStore";
 import {
   getWardCoordinates,
@@ -120,10 +120,14 @@ const ProjectsPage = () => {
   const user = useAuthStore((state) => state.user);
   const userDefaultSubCounty =
     user?.subCounty && isMigoriSubCounty(user.subCounty) ? user.subCounty : DEFAULT_SUBCOUNTY;
+  const enforcedProjectSubCounty = user?.role === "FISHERIES_OFFICER" ? userDefaultSubCounty : undefined;
 
   const [selectedImageFiles, setSelectedImageFiles] = useState<File[]>([]);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | ProjectStatus>("ALL");
+  const [subCountyFilter, setSubCountyFilter] = useState("ALL");
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects"],
@@ -179,6 +183,7 @@ const ProjectsPage = () => {
   }, [availableWards, selectedSubCounty, selectedWard]);
 
   const canCreateProject = user?.role === "DIRECTOR" || user?.role === "ADMIN" || user?.role === "FISHERIES_OFFICER";
+  const canEditProject = canCreateProject;
   const canUpdateProjectStatus = user?.role === "DIRECTOR" || user?.role === "ADMIN";
   const canDeleteProject = user?.role === "DIRECTOR" || user?.role === "ADMIN";
 
@@ -199,8 +204,7 @@ const ProjectsPage = () => {
   });
 
   const updateProject = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: ProjectStatus }) =>
-      projectsApi.update(id, { status, completionPercent: status === "COMPLETED" ? 100 : undefined }),
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateProjectPayload }) => projectsApi.update(id, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
       void queryClient.invalidateQueries({ queryKey: ["reports", "summary"] });
@@ -217,26 +221,50 @@ const ProjectsPage = () => {
 
   const [statusDrafts, setStatusDrafts] = useState<Record<string, ProjectStatus>>({});
 
+  const resetProjectForm = () => {
+    setEditingProjectId(null);
+    setSelectedImageFiles([]);
+    reset({
+      budgetLine: "",
+      category: "BLUE_ECONOMY",
+      name: "",
+      description: "",
+      subCounty: userDefaultSubCounty,
+      ward: ALL_WARDS,
+      budget: 0,
+      completionPercent: 0,
+      funder: "County Government of Migori",
+      status: "PENDING",
+      startDate: new Date().toISOString().slice(0, 10),
+      endDate: ""
+    });
+  };
+
   const filteredProjects = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return projects;
 
-    return projects.filter((project) =>
-      [
-        project.projectCode,
-        project.name,
-        project.budgetLine ?? "",
-        project.category,
-        project.description,
-        project.subCounty,
-        project.ward,
-        project.status,
-        project.funder,
-        String(project.budget),
-        String(project.completionPercent)
-      ].some((value) => value.toLowerCase().includes(term))
-    );
-  }, [projects, searchTerm]);
+    return projects.filter((project) => {
+      const matchesStatus = statusFilter === "ALL" || project.status === statusFilter;
+      const matchesSubCounty = subCountyFilter === "ALL" || project.subCounty === subCountyFilter;
+      const matchesSearch =
+        !term ||
+        [
+          project.projectCode,
+          project.name,
+          project.budgetLine ?? "",
+          project.category,
+          project.description,
+          project.subCounty,
+          project.ward,
+          project.status,
+          project.funder,
+          String(project.budget),
+          String(project.completionPercent)
+        ].some((value) => value.toLowerCase().includes(term));
+
+      return matchesStatus && matchesSubCounty && matchesSearch;
+    });
+  }, [projects, searchTerm, statusFilter, subCountyFilter]);
 
   const rows = useMemo(
     () =>
@@ -257,8 +285,35 @@ const ProjectsPage = () => {
           `KES ${project.budget.toLocaleString()}`,
           <StatusBadge key={`${project.id}-status`} status={formatStatus(project.status)} />,
           `${Math.round(project.completionPercent)}%`,
-          canUpdateProjectStatus || canDeleteProject ? (
+          canEditProject || canUpdateProjectStatus || canDeleteProject ? (
             <div className="flex items-center gap-2">
+              {canEditProject ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEditingProjectId(project.id);
+                    setSelectedImageFiles([]);
+                    reset({
+                      budgetLine: project.budgetLine ?? "",
+                      category: project.category,
+                      name: project.name,
+                      description: project.description,
+                      subCounty: project.subCounty,
+                      ward: project.ward,
+                      budget: project.budget,
+                      completionPercent: project.completionPercent,
+                      funder: project.funder,
+                      status: project.status,
+                      startDate: project.startDate.slice(0, 10),
+                      endDate: project.endDate ? project.endDate.slice(0, 10) : ""
+                    });
+                  }}
+                >
+                  Edit
+                </Button>
+              ) : null}
               {canUpdateProjectStatus ? (
                 <>
                   <select
@@ -284,7 +339,13 @@ const ProjectsPage = () => {
                     disabled={updateProject.isPending || selectedStatus === project.status}
                     onClick={async () => {
                       try {
-                        await updateProject.mutateAsync({ id: project.id, status: selectedStatus });
+                        await updateProject.mutateAsync({
+                          id: project.id,
+                          payload: {
+                            status: selectedStatus,
+                            completionPercent: selectedStatus === "COMPLETED" ? 100 : undefined
+                          }
+                        });
                         toast.success("Project status updated");
                       } catch (error) {
                         const message =
@@ -330,7 +391,7 @@ const ProjectsPage = () => {
           )
         ];
       }),
-    [filteredProjects, statusDrafts, canUpdateProjectStatus, canDeleteProject, updateProject, deleteProject]
+    [filteredProjects, statusDrafts, canEditProject, canUpdateProjectStatus, canDeleteProject, reset, updateProject, deleteProject]
   );
 
   return (
@@ -344,6 +405,31 @@ const ProjectsPage = () => {
             placeholder="Search projects..."
             className="w-56"
           />
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+          >
+            <option value="ALL">All statuses</option>
+            {projectStatusOptions.map((status) => (
+              <option key={status.value} value={status.value}>
+                {status.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={subCountyFilter}
+            onChange={(event) => setSubCountyFilter(event.target.value)}
+            disabled={Boolean(enforcedProjectSubCounty)}
+          >
+            <option value="ALL">All sub-counties</option>
+            {(enforcedProjectSubCounty ? [enforcedProjectSubCounty] : PROJECT_SUBCOUNTY_OPTIONS).map((subCounty) => (
+              <option key={subCounty} value={subCounty}>
+                {subCounty}
+              </option>
+            ))}
+          </select>
           <ExportButton
             filename="blue-economy-projects"
             sheetName="Projects"
@@ -411,7 +497,7 @@ const ProjectsPage = () => {
                 uploadedPhotos = await projectsApi.uploadImages(selectedImageFiles);
               }
 
-              await createProject.mutateAsync({
+              const projectPayload = {
                 budgetLine: values.budgetLine.trim() || undefined,
                 category: values.category,
                 name: values.name,
@@ -427,27 +513,26 @@ const ProjectsPage = () => {
                 photos: uploadedPhotos,
                 startDate: values.startDate,
                 endDate: values.endDate || null
-              });
-              toast.success("Project added successfully");
-              setSelectedImageFiles([]);
-              reset({
-                budgetLine: "",
-                category: "BLUE_ECONOMY",
-                name: "",
-                description: "",
-                subCounty: userDefaultSubCounty,
-                ward: ALL_WARDS,
-                budget: 0,
-                completionPercent: 0,
-                funder: "County Government of Migori",
-                status: "PENDING",
-                startDate: new Date().toISOString().slice(0, 10),
-                endDate: ""
-              });
+              } satisfies CreateProjectPayload;
+
+              if (editingProjectId) {
+                await updateProject.mutateAsync({
+                  id: editingProjectId,
+                  payload: {
+                    ...projectPayload,
+                    photos: uploadedPhotos.length > 0 ? uploadedPhotos : undefined
+                  }
+                });
+                toast.success("Project updated successfully");
+              } else {
+                await createProject.mutateAsync(projectPayload);
+                toast.success("Project added successfully");
+              }
+              resetProjectForm();
             } catch (error) {
               const message =
                 (error as AxiosError<{ error?: string }>).response?.data?.error ??
-                "Failed to add project.";
+                (editingProjectId ? "Failed to update project." : "Failed to add project.");
               toast.error(message);
             }
           })}
@@ -488,8 +573,9 @@ const ProjectsPage = () => {
                   }
                 }
               })}
+              disabled={Boolean(enforcedProjectSubCounty)}
             >
-              {PROJECT_SUBCOUNTY_OPTIONS.map((subCounty) => (
+              {(enforcedProjectSubCounty ? [enforcedProjectSubCounty] : PROJECT_SUBCOUNTY_OPTIONS).map((subCounty) => (
                 <option key={subCounty} value={subCounty}>
                   {subCounty}
                 </option>
@@ -566,8 +652,17 @@ const ProjectsPage = () => {
           </FormField>
 
           <div className="flex justify-end md:col-span-3">
-            <Button disabled={createProject.isPending} type="submit">
-              {createProject.isPending ? "Saving..." : "Add Project"}
+            {editingProjectId ? (
+              <Button type="button" variant="outline" className="mr-2" onClick={resetProjectForm}>
+                Cancel Edit
+              </Button>
+            ) : null}
+            <Button disabled={createProject.isPending || updateProject.isPending} type="submit">
+              {createProject.isPending || updateProject.isPending
+                ? "Saving..."
+                : editingProjectId
+                  ? "Update Project"
+                  : "Add Project"}
             </Button>
           </div>
         </form>
@@ -588,7 +683,7 @@ const ProjectsPage = () => {
         ]}
         rows={rows}
         emptyLabel={getSearchEmptyLabel({
-          searchTerm,
+          searchTerm: searchTerm || (statusFilter !== "ALL" || subCountyFilter !== "ALL" ? "selected filters" : ""),
           isLoading,
           loadingLabel: "Loading projects...",
           emptyLabel: "No projects found."

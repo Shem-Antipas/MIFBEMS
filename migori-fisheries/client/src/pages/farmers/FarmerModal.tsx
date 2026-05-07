@@ -9,16 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { CreateFarmerPayload } from "@/api/farmers";
 import { getWardCoordinates, MIGORI_SUBCOUNTIES, WARDS_BY_SUBCOUNTY, type LocationPoint } from "@/lib/locationData";
+import type { Farmer } from "@/types";
 
 const farmerSchema = z.object({
   name: z.string().min(2),
   idNumber: z.string().optional(),
   phoneNumber: z.string().optional(),
   email: z.string().email("Enter a valid email").optional().or(z.literal("")),
+  gender: z.enum(["MALE", "FEMALE"]).optional(),
+  ageBracket: z.enum(["YOUTH", "ADULT"]).optional(),
   subCounty: z.enum(MIGORI_SUBCOUNTIES),
   ward: z.string().min(2, "Ward is required"),
   farmType: z.enum(["POND", "CAGE", "TANK", "DAM"]),
-  status: z.enum(["ACTIVE", "INACTIVE", "PARTIALLY_ACTIVE"]),
+  status: z.enum(["ACTIVE", "INACTIVE", "PARTIALLY_ACTIVE", "SUSPENDED"]),
   species: z.string().min(2),
   productionKg: z.number().min(0),
   numberOfPonds: z.number().int().min(0),
@@ -113,6 +116,7 @@ interface FarmerModalProps {
   isSubmitting: boolean;
   canRecordLicense: boolean;
   enforcedSubCounty?: (typeof MIGORI_SUBCOUNTIES)[number];
+  initialFarmer?: Farmer | null;
 }
 
 const MapPicker = ({ onPick }: { onPick: (lat: number, lng: number) => void }) => {
@@ -147,7 +151,8 @@ const FarmerModal = ({
   onSubmit,
   isSubmitting,
   canRecordLicense,
-  enforcedSubCounty
+  enforcedSubCounty,
+  initialFarmer
 }: FarmerModalProps) => {
   const [manualLocation, setManualLocation] = useState<LocationPoint | null>(null);
 
@@ -162,6 +167,8 @@ const FarmerModal = ({
     resolver: zodResolver(farmerSchema),
     defaultValues: {
       name: "",
+      gender: undefined,
+      ageBracket: undefined,
       subCounty: "Suna East",
       ward: "God Jope",
       farmType: "POND",
@@ -182,6 +189,37 @@ const FarmerModal = ({
   const availableWards = WARDS_BY_SUBCOUNTY[effectiveSubCounty];
   const wardLocation = getWardCoordinates(effectiveSubCounty, selectedWard);
   const selectedLocation = manualLocation ?? wardLocation;
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    if (!initialFarmer) {
+      return;
+    }
+
+    setValue("name", initialFarmer.name);
+    setValue("idNumber", initialFarmer.idNumber ?? "");
+    setValue("phoneNumber", initialFarmer.phoneNumber ?? "");
+    setValue("email", initialFarmer.email ?? "");
+    setValue("gender", initialFarmer.gender ?? undefined);
+    setValue("ageBracket", initialFarmer.ageBracket ?? undefined);
+    setValue("subCounty", initialFarmer.subCounty as (typeof MIGORI_SUBCOUNTIES)[number], { shouldValidate: true });
+    setValue("ward", initialFarmer.ward, { shouldValidate: true });
+    setValue("farmType", initialFarmer.farmType);
+    setValue("status", initialFarmer.status);
+    setValue("species", initialFarmer.species.join(", "));
+    setValue("productionKg", initialFarmer.productionKg);
+    setValue("numberOfPonds", initialFarmer.numberOfPonds);
+    setValue("activePonds", initialFarmer.activePonds);
+    setValue("inactivePonds", initialFarmer.inactivePonds);
+    setManualLocation(
+      initialFarmer.latitude != null && initialFarmer.longitude != null
+        ? { lat: initialFarmer.latitude, lng: initialFarmer.longitude }
+        : null
+    );
+  }, [initialFarmer, open, setValue]);
 
   useEffect(() => {
     if (!enforcedSubCounty) {
@@ -208,6 +246,8 @@ const FarmerModal = ({
       idNumber: values.idNumber?.trim() || undefined,
       phoneNumber: values.phoneNumber?.trim() || undefined,
       email: values.email?.trim() || undefined,
+      gender: values.gender,
+      ageBracket: values.ageBracket,
       subCounty: values.subCounty,
       ward: values.ward,
       farmType: values.farmType,
@@ -243,7 +283,7 @@ const FarmerModal = ({
       <Card className="h-dvh w-full overflow-hidden rounded-none border-0 sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-2xl sm:rounded-lg sm:border">
         <CardContent className="flex h-full flex-col p-0 sm:max-h-[calc(100dvh-2rem)]">
         <div className="flex shrink-0 items-center justify-between border-b bg-card px-4 py-3 sm:px-5">
-          <h3 className="text-lg font-semibold">Register Farmer</h3>
+          <h3 className="text-lg font-semibold">{initialFarmer ? "Edit Farmer" : "Register Farmer"}</h3>
           <Button type="button" variant="ghost" size="sm" onClick={onClose}>Close</Button>
         </div>
 
@@ -271,6 +311,24 @@ const FarmerModal = ({
             <label className="mb-1 block text-sm font-medium">Email (optional)</label>
             <Input type="email" {...register("email")} placeholder="name@example.com" />
             {errors.email ? <p className="text-xs text-red-600">{errors.email.message}</p> : null}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">Gender</label>
+            <select className="w-full rounded-lg border px-3 py-2 text-sm" {...register("gender")}>
+              <option value="">Select gender</option>
+              <option value="MALE">Male</option>
+              <option value="FEMALE">Female</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">Age Bracket</label>
+            <select className="w-full rounded-lg border px-3 py-2 text-sm" {...register("ageBracket")}>
+              <option value="">Select age bracket</option>
+              <option value="ADULT">Adult - Above 35</option>
+              <option value="YOUTH">Youth - Below 35</option>
+            </select>
           </div>
 
           <div>
@@ -319,6 +377,7 @@ const FarmerModal = ({
               <option value="ACTIVE">Active</option>
               <option value="INACTIVE">Inactive</option>
               <option value="PARTIALLY_ACTIVE">Partially Active</option>
+              <option value="SUSPENDED">Suspended</option>
             </select>
           </div>
 
@@ -354,7 +413,7 @@ const FarmerModal = ({
               </div>
             </div>
 
-          {canRecordLicense ? (
+          {canRecordLicense && !initialFarmer ? (
           <div className="md:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
             <label className="flex items-center gap-2 text-sm font-medium text-emerald-900">
               <input type="checkbox" className="h-4 w-4" {...register("issueLicense")} />
@@ -443,7 +502,7 @@ const FarmerModal = ({
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Saving..." : "Save Farmer"}
+              {isSubmitting ? "Saving..." : initialFarmer ? "Update Farmer" : "Save Farmer"}
             </Button>
           </div>
         </form>

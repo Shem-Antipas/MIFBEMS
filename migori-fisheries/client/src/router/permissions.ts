@@ -15,12 +15,14 @@ export const navItems: NavItem[] = [
   { label: "Capture Fisheries", path: "/capture-fisheries", allowedRoles: ["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST"] },
   { label: "Projects", path: "/projects", allowedRoles: ["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST"] },
   { label: "Extension Services", path: "/inspections", allowedRoles: ["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"] },
+  { label: "Advisories", path: "/advisories", allowedRoles: ["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALYST"] },
+  { label: "Queries", path: "/queries", allowedRoles: ["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"] },
   { label: "Reports", path: "/reports", allowedRoles: ["DIRECTOR", "ADMIN", "DATA_ANALYST"] },
   { label: "Analytics", path: "/analytics", allowedRoles: ["DIRECTOR", "ADMIN", "DATA_ANALYST"] },
   { label: "Users", path: "/users", allowedRoles: ["DIRECTOR", "ADMIN"] },
-  { label: "Settings", path: "/settings", allowedRoles: allRoles },
   { label: "Backups", path: "/admin/backups", allowedRoles: ["ADMIN", "DIRECTOR"] },
   { label: "My Farm", path: "/farmer/my-farm", allowedRoles: ["FARMER"] },
   { label: "Advisories", path: "/farmer/advisories", allowedRoles: ["FARMER"] },
-  { label: "Queries", path: "/farmer/queries", allowedRoles: ["FARMER"] }
+  { label: "Queries", path: "/farmer/queries", allowedRoles: ["FARMER"] },
+  { label: "Settings", path: "/settings", allowedRoles: allRoles }
 ];

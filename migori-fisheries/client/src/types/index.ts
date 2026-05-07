@@ -23,6 +23,8 @@ export interface Farmer {
   idNumber?: string | null;
   phoneNumber?: string | null;
   email?: string | null;
+  gender?: "MALE" | "FEMALE" | null;
+  ageBracket?: "YOUTH" | "ADULT" | null;
   subCounty: string;
   ward: string;
   farmType: "POND" | "CAGE" | "TANK" | "DAM";
@@ -118,6 +120,39 @@ export interface CaptureFisheriesRecord {
   createdAt: string;
 }
 
+export interface CageProductionRecord {
+  id: string;
+  cageCode: string;
+  farmerUniqueId: string;
+  farmerName: string;
+  phoneNumber?: string | null;
+  idNumber?: string | null;
+  bmuLocation?: string | null;
+  cageIdentifier?: string | null;
+  fishSpecies: "Tilapia";
+  subCounty: string;
+  ward: string;
+  numberOfCages: number;
+  activeCages: number;
+  inactiveCages: number;
+  fingerlingsStocked: number;
+  stockingDate?: string | null;
+  feedTypes: Array<"Mash" | "Pellets">;
+  feedQuantityKg: number;
+  averageFishWeightKg: number;
+  mortalityPieces: number;
+  quantityHarvestedKg: number;
+  numberHarvestedPieces: number;
+  harvestDate?: string | null;
+  extensionOfficerName?: string | null;
+  remarks?: string | null;
+  month: number;
+  year: number;
+  recordedById: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Inspection {
   id: string;
   farmName: string;
@@ -167,6 +202,7 @@ export interface Advisory {
   type: "INFO" | "WARNING" | "ACTION";
   fromName: string;
   subCounty?: string | null;
+  targetUserId?: string | null;
   createdAt: string;
 }
 
@@ -177,8 +213,17 @@ export interface QueryRecord {
   message: string;
   status: "PENDING" | "RESOLVED";
   reply?: string | null;
+  replyById?: string | null;
+  replyByName?: string | null;
+  repliedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    subCounty: string | null;
+  };
 }
 
 export interface DashboardSummary {

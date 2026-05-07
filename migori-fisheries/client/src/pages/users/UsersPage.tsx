@@ -54,6 +54,9 @@ const userExportColumns = [
 const UsersPage = () => {
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, AssignmentDraft>>({});
   const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"ALL" | Role>("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
+  const [subCountyFilter, setSubCountyFilter] = useState("ALL");
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
   const canManageUsers = currentUser?.role === "DIRECTOR" || currentUser?.role === "ADMIN";
@@ -151,14 +154,24 @@ const UsersPage = () => {
 
   const filteredUsers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return users;
 
-    return users.filter((user) =>
-      [user.name, user.email, user.role, user.subCounty ?? "county-wide", user.isActive ? "active" : "inactive"].some((value) =>
-        value.toLowerCase().includes(term)
-      )
-    );
-  }, [searchTerm, users]);
+    return users.filter((user) => {
+      const status = user.isActive ? "ACTIVE" : "INACTIVE";
+      const operatingArea = user.subCounty ?? "County-wide";
+      const matchesRole = roleFilter === "ALL" || user.role === roleFilter;
+      const matchesStatus = statusFilter === "ALL" || status === statusFilter;
+      const matchesSubCounty =
+        subCountyFilter === "ALL" ||
+        (subCountyFilter === "COUNTY_WIDE" ? user.subCounty == null : user.subCounty === subCountyFilter);
+      const matchesSearch =
+        !term ||
+        [user.name, user.email, user.role, formatRole(user.role), operatingArea, status].some((value) =>
+          value.toLowerCase().includes(term)
+        );
+
+      return matchesRole && matchesStatus && matchesSubCounty && matchesSearch;
+    });
+  }, [roleFilter, searchTerm, statusFilter, subCountyFilter, users]);
 
   return (
     <section className="space-y-4">
@@ -171,6 +184,40 @@ const UsersPage = () => {
             placeholder="Search user..."
             className="w-56"
           />
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={roleFilter}
+            onChange={(event) => setRoleFilter(event.target.value as typeof roleFilter)}
+          >
+            <option value="ALL">All roles</option>
+            {roles.map((role) => (
+              <option key={role} value={role}>
+                {formatRole(role)}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+          >
+            <option value="ALL">All statuses</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select>
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={subCountyFilter}
+            onChange={(event) => setSubCountyFilter(event.target.value)}
+          >
+            <option value="ALL">All operating areas</option>
+            <option value="COUNTY_WIDE">County-wide</option>
+            {MIGORI_SUBCOUNTIES.map((subCounty) => (
+              <option key={subCounty} value={subCounty}>
+                {subCounty}
+              </option>
+            ))}
+          </select>
           <ExportButton
             filename="system-users"
             sheetName="Users"
@@ -379,7 +426,9 @@ const UsersPage = () => {
           ];
         })}
         emptyLabel={getSearchEmptyLabel({
-          searchTerm,
+          searchTerm:
+            searchTerm ||
+            (roleFilter !== "ALL" || statusFilter !== "ALL" || subCountyFilter !== "ALL" ? "selected filters" : ""),
           isLoading,
           loadingLabel: "Loading users...",
           emptyLabel: "No users found."

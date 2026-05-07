@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bar,
@@ -23,22 +23,20 @@ import { Input } from "@/components/ui/input";
 import { captureFisheriesApi } from "@/api/captureFisheries";
 import { inspectionsApi } from "@/api/inspections";
 import { projectsApi } from "@/api/projects";
-import { reportsApi } from "@/api/reports";
 import { useFarmers } from "@/hooks/useFarmers";
 import { useLicenses } from "@/hooks/useLicenses";
-import { MIGORI_SUBCOUNTIES } from "@/lib/locationData";
+import { MIGORI_SUBCOUNTIES, WARDS_BY_SUBCOUNTY, type MigoriSubCounty } from "@/lib/locationData";
 import type { ExcelColumn } from "@/lib/exportToExcel";
 import { getSearchEmptyLabel } from "@/lib/search";
-
-type ReportExportRow = {
-  section: string;
-  metric: string;
-  value: string | number;
-};
 
 type NameValueRow = {
   name: string;
   value: number;
+};
+
+type SummaryReportRow = {
+  metric: string;
+  value: string | number;
 };
 
 type SubCountyReportRow = {
@@ -51,11 +49,58 @@ type SubCountyReportRow = {
   inspections: number;
 };
 
-const reportExportColumns = [
-  { header: "Section", value: "section" },
+type DemographicReportRow = {
+  scope: string;
+  subCounty: string;
+  ward: string;
+  farmers: number;
+  male: number;
+  female: number;
+  youth: number;
+  adult: number;
+  unspecifiedGender: number;
+  unspecifiedAge: number;
+  productionKg: number;
+};
+
+type StatusReportRow = {
+  status: string;
+  count: number;
+};
+
+const summaryExportColumns = [
   { header: "Metric", value: "metric" },
   { header: "Value", value: "value" }
-] satisfies Array<ExcelColumn<ReportExportRow>>;
+] satisfies Array<ExcelColumn<SummaryReportRow>>;
+
+const subCountyExportColumns = [
+  { header: "Sub-County", value: "subCounty" },
+  { header: "Farmers", value: "farmers" },
+  { header: "Production (Kg)", value: "productionKg" },
+  { header: "Licenses", value: "licenses" },
+  { header: "Valid Licenses", value: "validLicenses" },
+  { header: "Projects", value: "projects" },
+  { header: "Extension Services", value: "inspections" }
+] satisfies Array<ExcelColumn<SubCountyReportRow>>;
+
+const demographicExportColumns = [
+  { header: "Scope", value: "scope" },
+  { header: "Sub-County", value: "subCounty" },
+  { header: "Ward", value: "ward" },
+  { header: "Farmers", value: "farmers" },
+  { header: "Male", value: "male" },
+  { header: "Female", value: "female" },
+  { header: "Youth", value: "youth" },
+  { header: "Adult", value: "adult" },
+  { header: "Unspecified Gender", value: "unspecifiedGender" },
+  { header: "Unspecified Age", value: "unspecifiedAge" },
+  { header: "Production (Kg)", value: "productionKg" }
+] satisfies Array<ExcelColumn<DemographicReportRow>>;
+
+const statusExportColumns = [
+  { header: "Status", value: "status" },
+  { header: "Count", value: "count" }
+] satisfies Array<ExcelColumn<StatusReportRow>>;
 
 const chartColors = ["#0f766e", "#2563eb", "#7c3aed", "#ea580c", "#16a34a", "#ca8a04", "#be123c", "#0891b2"];
 const statusColors: Record<string, string> = {
@@ -104,16 +149,26 @@ const countBy = <T,>(items: T[], getKey: (item: T) => string | null | undefined)
   return Object.entries(totals).map(([name, value]) => ({ name, value }));
 };
 
+const toStatusExportRows = (rows: NameValueRow[]): StatusReportRow[] =>
+  rows.map((row) => ({
+    status: row.name,
+    count: row.value
+  }));
+
 const ReportsPage = () => {
   const [selectedSubCounty, setSelectedSubCounty] = useState<string>("All");
+  const [selectedWard, setSelectedWard] = useState<string>("All");
   const [valueDisplayMode, setValueDisplayMode] = useState<"FIGURE" | "PERCENT">("FIGURE");
   const [searchTerm, setSearchTerm] = useState("");
-  const summarySubCounty = selectedSubCounty === "All" ? undefined : selectedSubCounty;
+  const availableWards =
+    selectedSubCounty !== "All" && MIGORI_SUBCOUNTIES.includes(selectedSubCounty as MigoriSubCounty)
+      ? WARDS_BY_SUBCOUNTY[selectedSubCounty as MigoriSubCounty]
+      : [];
 
-  const { data: reportData, isLoading: isReportLoading } = useQuery({
-    queryKey: ["reports", "summary", summarySubCounty ?? "all"],
-    queryFn: () => reportsApi.summary(summarySubCounty)
-  });
+  useEffect(() => {
+    setSelectedWard("All");
+  }, [selectedSubCounty]);
+
   const { data: farmers = [], isLoading: isFarmersLoading } = useFarmers();
   const { data: licenses = [], isLoading: isLicensesLoading } = useLicenses();
   const { data: projects = [], isLoading: isProjectsLoading } = useQuery({
@@ -130,59 +185,83 @@ const ReportsPage = () => {
   });
 
   const isLoading =
-    isReportLoading || isFarmersLoading || isLicensesLoading || isProjectsLoading || isInspectionsLoading || isCaptureLoading;
+    isFarmersLoading || isLicensesLoading || isProjectsLoading || isInspectionsLoading || isCaptureLoading;
 
   const filteredFarmers = useMemo(
     () =>
-      selectedSubCounty === "All"
-        ? farmers
-        : farmers.filter((farmer) => farmer.subCounty === selectedSubCounty),
-    [farmers, selectedSubCounty]
+      farmers.filter((farmer) => {
+        const subCountyMatches = selectedSubCounty === "All" || farmer.subCounty === selectedSubCounty;
+        const wardMatches = selectedWard === "All" || farmer.ward === selectedWard;
+        return subCountyMatches && wardMatches;
+      }),
+    [farmers, selectedSubCounty, selectedWard]
   );
 
   const filteredLicenses = useMemo(
     () =>
-      selectedSubCounty === "All"
-        ? licenses
-        : licenses.filter((license) => license.farmer?.subCounty === selectedSubCounty),
-    [licenses, selectedSubCounty]
+      licenses.filter((license) => {
+        const subCounty = license.farmer?.subCounty ?? license.subCounty;
+        const ward = license.farmer?.ward ?? license.ward;
+        const subCountyMatches = selectedSubCounty === "All" || subCounty === selectedSubCounty;
+        const wardMatches = selectedWard === "All" || ward === selectedWard;
+        return subCountyMatches && wardMatches;
+      }),
+    [licenses, selectedSubCounty, selectedWard]
   );
 
   const filteredProjects = useMemo(
     () =>
-      selectedSubCounty === "All"
-        ? projects
-        : projects.filter((project) => project.subCounty === selectedSubCounty),
-    [projects, selectedSubCounty]
+      projects.filter((project) => {
+        const subCountyMatches = selectedSubCounty === "All" || project.subCounty === selectedSubCounty;
+        const wardMatches = selectedWard === "All" || project.ward === selectedWard || project.ward === "All wards";
+        return subCountyMatches && wardMatches;
+      }),
+    [projects, selectedSubCounty, selectedWard]
   );
 
   const filteredInspections = useMemo(
     () =>
-      selectedSubCounty === "All"
-        ? inspections
-        : inspections.filter((inspection) => inspection.subCounty === selectedSubCounty),
-    [inspections, selectedSubCounty]
+      inspections.filter((inspection) => {
+        const subCountyMatches = selectedSubCounty === "All" || inspection.subCounty === selectedSubCounty;
+        const wardMatches = selectedWard === "All" || inspection.ward === selectedWard;
+        return subCountyMatches && wardMatches;
+      }),
+    [inspections, selectedSubCounty, selectedWard]
   );
 
   const filteredCaptureRecords = useMemo(
     () =>
-      selectedSubCounty === "All"
-        ? captureRecords
-        : captureRecords.filter((record) => record.subCounty === selectedSubCounty),
-    [captureRecords, selectedSubCounty]
+      captureRecords.filter((record) => {
+        const subCountyMatches = selectedSubCounty === "All" || record.subCounty === selectedSubCounty;
+        const wardMatches = selectedWard === "All" || record.ward === selectedWard;
+        return subCountyMatches && wardMatches;
+      }),
+    [captureRecords, selectedSubCounty, selectedWard]
   );
 
   const subCountyRows = useMemo<SubCountyReportRow[]>(() => {
     const visibleSubCounties = selectedSubCounty === "All" ? MIGORI_SUBCOUNTIES : [selectedSubCounty];
 
     return visibleSubCounties.map((subCounty) => {
-      const farmersInSubCounty = farmers.filter((farmer) => farmer.subCounty === subCounty);
-      const licensesInSubCounty = licenses.filter((license) => license.farmer?.subCounty === subCounty);
-      const projectsInSubCounty = projects.filter((project) => project.subCounty === subCounty);
-      const inspectionsInSubCounty = inspections.filter((inspection) => inspection.subCounty === subCounty);
+      const farmersInSubCounty = farmers.filter(
+        (farmer) => farmer.subCounty === subCounty && (selectedWard === "All" || farmer.ward === selectedWard)
+      );
+      const licensesInSubCounty = licenses.filter((license) => {
+        const licenseSubCounty = license.farmer?.subCounty ?? license.subCounty;
+        const licenseWard = license.farmer?.ward ?? license.ward;
+        return licenseSubCounty === subCounty && (selectedWard === "All" || licenseWard === selectedWard);
+      });
+      const projectsInSubCounty = projects.filter(
+        (project) =>
+          project.subCounty === subCounty &&
+          (selectedWard === "All" || project.ward === selectedWard || project.ward === "All wards")
+      );
+      const inspectionsInSubCounty = inspections.filter(
+        (inspection) => inspection.subCounty === subCounty && (selectedWard === "All" || inspection.ward === selectedWard)
+      );
       const farmProduction = farmersInSubCounty.reduce((total, farmer) => total + farmer.productionKg, 0);
       const captureProduction = captureRecords
-        .filter((record) => record.subCounty === subCounty)
+        .filter((record) => record.subCounty === subCounty && (selectedWard === "All" || record.ward === selectedWard))
         .reduce((total, record) => total + record.catchKg, 0);
 
       return {
@@ -195,7 +274,54 @@ const ReportsPage = () => {
         inspections: inspectionsInSubCounty.length
       };
     });
-  }, [captureRecords, farmers, inspections, licenses, projects, selectedSubCounty]);
+  }, [captureRecords, farmers, inspections, licenses, projects, selectedSubCounty, selectedWard]);
+
+  const demographicRows = useMemo<DemographicReportRow[]>(() => {
+    const buildRow = (scope: string, subCounty: string, ward: string, visibleFarmers: typeof farmers): DemographicReportRow => ({
+      scope,
+      subCounty,
+      ward,
+      farmers: visibleFarmers.length,
+      male: visibleFarmers.filter((farmer) => farmer.gender === "MALE").length,
+      female: visibleFarmers.filter((farmer) => farmer.gender === "FEMALE").length,
+      youth: visibleFarmers.filter((farmer) => farmer.ageBracket === "YOUTH").length,
+      adult: visibleFarmers.filter((farmer) => farmer.ageBracket === "ADULT").length,
+      unspecifiedGender: visibleFarmers.filter((farmer) => !farmer.gender).length,
+      unspecifiedAge: visibleFarmers.filter((farmer) => !farmer.ageBracket).length,
+      productionKg: visibleFarmers.reduce((total, farmer) => total + farmer.productionKg, 0)
+    });
+
+    if (selectedSubCounty === "All") {
+      return MIGORI_SUBCOUNTIES.map((subCounty) =>
+        buildRow(
+          "Sub-County",
+          subCounty,
+          "All wards",
+          farmers.filter((farmer) => farmer.subCounty === subCounty)
+        )
+      );
+    }
+
+    if (selectedWard !== "All") {
+      return [
+        buildRow(
+          "Ward",
+          selectedSubCounty,
+          selectedWard,
+          farmers.filter((farmer) => farmer.subCounty === selectedSubCounty && farmer.ward === selectedWard)
+        )
+      ];
+    }
+
+    return availableWards.map((ward) =>
+      buildRow(
+        "Ward",
+        selectedSubCounty,
+        ward,
+        farmers.filter((farmer) => farmer.subCounty === selectedSubCounty && farmer.ward === ward)
+      )
+    );
+  }, [availableWards, farmers, selectedSubCounty, selectedWard]);
 
   const filteredSubCountyRows = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -214,6 +340,25 @@ const ReportsPage = () => {
     );
   }, [searchTerm, subCountyRows]);
 
+  const filteredDemographicRows = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return demographicRows;
+
+    return demographicRows.filter((row) =>
+      [
+        row.scope,
+        row.subCounty,
+        row.ward,
+        String(row.farmers),
+        String(row.male),
+        String(row.female),
+        String(row.youth),
+        String(row.adult),
+        String(row.productionKg)
+      ].some((value) => value.toLowerCase().includes(term))
+    );
+  }, [demographicRows, searchTerm]);
+
   const totalProductionKg = subCountyRows.reduce((total, row) => total + row.productionKg, 0);
   const activeLicenses = filteredLicenses.filter((license) => license.status === "VALID").length;
   const expiredLicenses = filteredLicenses.filter((license) => license.status === "EXPIRED").length;
@@ -222,6 +367,24 @@ const ReportsPage = () => {
 
   const licenseRows = useMemo(() => countBy(filteredLicenses, (license) => license.status), [filteredLicenses]);
   const farmerStatusRows = useMemo(() => countBy(filteredFarmers, (farmer) => farmer.status), [filteredFarmers]);
+  const genderRows = useMemo(
+    () =>
+      countBy(filteredFarmers, (farmer) => {
+        if (farmer.gender === "MALE") return "Male";
+        if (farmer.gender === "FEMALE") return "Female";
+        return "Unspecified";
+      }),
+    [filteredFarmers]
+  );
+  const ageRows = useMemo(
+    () =>
+      countBy(filteredFarmers, (farmer) => {
+        if (farmer.ageBracket === "YOUTH") return "Youth";
+        if (farmer.ageBracket === "ADULT") return "Adult";
+        return "Unspecified";
+      }),
+    [filteredFarmers]
+  );
   const projectRows = useMemo(() => countBy(filteredProjects, (project) => project.status), [filteredProjects]);
   const inspectionRows = useMemo(() => countBy(filteredInspections, (inspection) => inspection.result), [filteredInspections]);
 
@@ -234,48 +397,36 @@ const ReportsPage = () => {
     );
   }, [licenseRows, searchTerm]);
 
-  const exportRows = useMemo<ReportExportRow[]>(() => {
-    const summaryRows: ReportExportRow[] = [
-      { section: "Summary", metric: "Scope", value: selectedSubCounty },
-      { section: "Summary", metric: "Total Farmers", value: reportData?.summary.totalFarmers ?? filteredFarmers.length },
-      { section: "Summary", metric: "Active Licenses", value: reportData?.summary.activeLicenses ?? activeLicenses },
-      { section: "Summary", metric: "Expired Licenses", value: reportData?.summary.expiredLicenses ?? expiredLicenses },
-      { section: "Summary", metric: "Total Projects", value: reportData?.summary.totalProjects ?? filteredProjects.length },
-      { section: "Summary", metric: "Ongoing Projects", value: reportData?.summary.ongoingProjects ?? ongoingProjects },
-      { section: "Summary", metric: "Total Production (Kg)", value: totalProductionKg },
-      { section: "Summary", metric: "Capture Fisheries (Kg)", value: captureProductionKg },
-      { section: "Summary", metric: "Inspections", value: filteredInspections.length }
-    ];
-
-    return [
-      ...summaryRows,
-      ...subCountyRows.map((row) => ({
-        section: "Sub-County Report",
-        metric: row.subCounty,
-        value: `${formatNumber(row.productionKg)} kg, ${formatNumber(row.farmers)} farmers, ${formatNumber(row.licenses)} licenses`
-      })),
-      ...licenseRows.map((row) => ({ section: "License Status", metric: row.name, value: row.value })),
-      ...farmerStatusRows.map((row) => ({ section: "Farmer Status", metric: row.name, value: row.value })),
-      ...projectRows.map((row) => ({ section: "Project Status", metric: row.name, value: row.value })),
-      ...inspectionRows.map((row) => ({ section: "Inspection Result", metric: row.name, value: row.value }))
-    ];
-  }, [
+  const summaryRows = useMemo<SummaryReportRow[]>(() => [
+    { metric: "Sub-County Scope", value: selectedSubCounty },
+    { metric: "Ward Scope", value: selectedWard },
+    { metric: "Total Farmers", value: filteredFarmers.length },
+    { metric: "Active Licenses", value: activeLicenses },
+    { metric: "Expired Licenses", value: expiredLicenses },
+    { metric: "Total Projects", value: filteredProjects.length },
+    { metric: "Ongoing Projects", value: ongoingProjects },
+    { metric: "Total Production (Kg)", value: totalProductionKg },
+    { metric: "Capture Fisheries (Kg)", value: captureProductionKg },
+    { metric: "Extension Services", value: filteredInspections.length }
+  ], [
     activeLicenses,
     captureProductionKg,
     expiredLicenses,
-    farmerStatusRows,
     filteredFarmers.length,
     filteredInspections.length,
     filteredProjects.length,
-    inspectionRows,
-    licenseRows,
     ongoingProjects,
-    projectRows,
-    reportData,
     selectedSubCounty,
-    subCountyRows,
+    selectedWard,
     totalProductionKg
   ]);
+
+  const licenseStatusExportRows = useMemo(() => toStatusExportRows(licenseRows), [licenseRows]);
+  const farmerStatusExportRows = useMemo(() => toStatusExportRows(farmerStatusRows), [farmerStatusRows]);
+  const genderExportRows = useMemo(() => toStatusExportRows(genderRows), [genderRows]);
+  const ageExportRows = useMemo(() => toStatusExportRows(ageRows), [ageRows]);
+  const projectStatusExportRows = useMemo(() => toStatusExportRows(projectRows), [projectRows]);
+  const inspectionStatusExportRows = useMemo(() => toStatusExportRows(inspectionRows), [inspectionRows]);
 
   if (isLoading) {
     return <div className="text-sm text-muted-foreground">Loading live reports...</div>;
@@ -287,7 +438,7 @@ const ReportsPage = () => {
         <div>
           <h1 className="text-xl font-semibold">Reports & Exports</h1>
           <p className="text-sm text-muted-foreground">
-            Live operational reports from farmers, licenses, capture fisheries, projects, and inspections.
+            Live operational reports from farmers, licenses, capture fisheries, projects, and extension services.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -317,21 +468,99 @@ const ReportsPage = () => {
               </option>
             ))}
           </select>
-          <ExportButton
-            filename="reports-live-summary"
-            sheetName="Reports"
-            columns={reportExportColumns}
-            rows={exportRows}
-          />
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            value={selectedWard}
+            onChange={(event) => setSelectedWard(event.target.value)}
+            disabled={selectedSubCounty === "All"}
+          >
+            <option value="All">{selectedSubCounty === "All" ? "Select sub-county for wards" : "All Wards"}</option>
+            {availableWards.map((ward) => (
+              <option key={ward} value={ward}>
+                {ward}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
+      <Card>
+        <CardHeader className="p-4 pb-2">
+          <CardTitle>Download Individual Reports</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2 p-4 pt-2">
+          <ExportButton
+            filename="report-summary"
+            sheetName="Summary"
+            columns={summaryExportColumns}
+            rows={summaryRows}
+            label="Summary"
+          />
+          <ExportButton
+            filename="report-sub-county-performance"
+            sheetName="Sub-County Performance"
+            columns={subCountyExportColumns}
+            rows={subCountyRows}
+            label="Sub-County"
+          />
+          <ExportButton
+            filename="report-demographics-drilldown"
+            sheetName="Demographics"
+            columns={demographicExportColumns}
+            rows={demographicRows}
+            label="Gender & Age"
+          />
+          <ExportButton
+            filename="report-gender"
+            sheetName="Gender"
+            columns={statusExportColumns}
+            rows={genderExportRows}
+            label="Gender"
+          />
+          <ExportButton
+            filename="report-age-bracket"
+            sheetName="Age Bracket"
+            columns={statusExportColumns}
+            rows={ageExportRows}
+            label="Youth / Adult"
+          />
+          <ExportButton
+            filename="report-license-status"
+            sheetName="License Status"
+            columns={statusExportColumns}
+            rows={licenseStatusExportRows}
+            label="Licenses"
+          />
+          <ExportButton
+            filename="report-farmer-status"
+            sheetName="Farmer Status"
+            columns={statusExportColumns}
+            rows={farmerStatusExportRows}
+            label="Farmers"
+          />
+          <ExportButton
+            filename="report-project-status"
+            sheetName="Project Status"
+            columns={statusExportColumns}
+            rows={projectStatusExportRows}
+            label="Projects"
+          />
+          <ExportButton
+            filename="report-extension-status"
+            sheetName="Extension Status"
+            columns={statusExportColumns}
+            rows={inspectionStatusExportRows}
+            label="Extension"
+          />
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard label="Total Farmers" value={reportData?.summary.totalFarmers ?? filteredFarmers.length} />
+        <StatCard label="Total Farmers" value={filteredFarmers.length} />
         <StatCard label="Total Production" value={formatKg(totalProductionKg)} helper={`${formatNumber(totalProductionKg / 1000, 2)} MT`} />
-        <StatCard label="Active Licenses" value={reportData?.summary.activeLicenses ?? activeLicenses} />
-        <StatCard label="Projects" value={reportData?.summary.totalProjects ?? filteredProjects.length} helper={`${formatNumber(ongoingProjects)} ongoing`} />
-        <StatCard label="Inspections" value={reportData?.summary.inspectionsThisYear ?? filteredInspections.length} helper="Current visible scope" />
+        <StatCard label="Active Licenses" value={activeLicenses} />
+        <StatCard label="Projects" value={filteredProjects.length} helper={`${formatNumber(ongoingProjects)} ongoing`} />
+        <StatCard label="Extension Services" value={filteredInspections.length} helper="Current visible scope" />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
@@ -392,6 +621,67 @@ const ReportsPage = () => {
             </ResponsiveContainer>
           ) : (
             <div className="grid h-full place-items-center text-sm text-muted-foreground">No license records available.</div>
+          )}
+        </ChartCard>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ChartCard title="Farmers by Gender">
+          {genderRows.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={genderRows}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={54}
+                  outerRadius={88}
+                  label={(entry) =>
+                    formatDisplayValue(
+                      Number(entry?.value ?? 0),
+                      genderRows.reduce((sum, row) => sum + row.value, 0),
+                      valueDisplayMode
+                    )
+                  }
+                >
+                  {genderRows.map((entry) => (
+                    <Cell key={entry.name} fill={entry.name === "Female" ? "#be123c" : entry.name === "Male" ? "#2563eb" : "#6b7280"} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="grid h-full place-items-center text-sm text-muted-foreground">No gender records available.</div>
+          )}
+        </ChartCard>
+
+        <ChartCard title="Farmers by Age Bracket">
+          {ageRows.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={ageRows} margin={{ left: 0, right: 16, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" fontSize={11} />
+                <YAxis allowDecimals={false} fontSize={11} />
+                <Tooltip />
+                <Bar dataKey="value" name="Farmers" fill="#0f766e" radius={[6, 6, 0, 0]}>
+                  <LabelList
+                    dataKey="value"
+                    position="top"
+                    formatter={(value) =>
+                      formatDisplayValue(
+                        Number(value),
+                        ageRows.reduce((sum, row) => sum + row.value, 0),
+                        valueDisplayMode
+                      )
+                    }
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="grid h-full place-items-center text-sm text-muted-foreground">No age bracket records available.</div>
           )}
         </ChartCard>
       </div>
@@ -459,7 +749,7 @@ const ReportsPage = () => {
           )}
         </ChartCard>
 
-        <ChartCard title="Inspection Results">
+        <ChartCard title="Extension Status">
           {inspectionRows.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={inspectionRows} layout="vertical" margin={{ left: 16, right: 16 }}>
@@ -467,7 +757,7 @@ const ReportsPage = () => {
                 <XAxis type="number" allowDecimals={false} fontSize={11} />
                 <YAxis type="category" dataKey="name" fontSize={11} width={78} />
                 <Tooltip />
-                <Bar dataKey="value" name="Inspections" radius={[0, 6, 6, 0]}>
+                <Bar dataKey="value" name="Extension Services" radius={[0, 6, 6, 0]}>
                   {inspectionRows.map((entry) => (
                     <Cell key={entry.name} fill={statusColors[entry.name] ?? chartColors[3]} />
                   ))}
@@ -486,13 +776,57 @@ const ReportsPage = () => {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="grid h-full place-items-center text-sm text-muted-foreground">No inspection records available.</div>
+            <div className="grid h-full place-items-center text-sm text-muted-foreground">No extension service records available.</div>
           )}
         </ChartCard>
       </div>
 
+      <div className="space-y-2">
+        <div>
+          <h2 className="text-base font-semibold">Gender & Age Drill-Down</h2>
+          <p className="text-sm text-muted-foreground">
+            Switch from all sub-counties to a specific sub-county, then select a ward to narrow the demographic report.
+          </p>
+        </div>
+        <DataTable
+          headers={[
+            "Scope",
+            "Sub-County",
+            "Ward",
+            "Farmers",
+            "Male",
+            "Female",
+            "Youth",
+            "Adult",
+            "Unspecified Gender",
+            "Unspecified Age",
+            "Production"
+          ]}
+          rows={filteredDemographicRows.map((row) => [
+            row.scope,
+            row.subCounty,
+            row.ward,
+            formatNumber(row.farmers),
+            formatNumber(row.male),
+            formatNumber(row.female),
+            formatNumber(row.youth),
+            formatNumber(row.adult),
+            formatNumber(row.unspecifiedGender),
+            formatNumber(row.unspecifiedAge),
+            formatKg(row.productionKg)
+          ])}
+          emptyLabel={getSearchEmptyLabel({
+            searchTerm,
+            isLoading,
+            loadingLabel: "Loading demographic records...",
+            emptyLabel: "No demographic records available."
+          })}
+          pageSize={8}
+        />
+      </div>
+
       <DataTable
-        headers={["Sub-County", "Farmers", "Production", "Licenses", "Valid Licenses", "Projects", "Inspections"]}
+        headers={["Sub-County", "Farmers", "Production", "Licenses", "Valid Licenses", "Projects", "Extension Services"]}
         rows={filteredSubCountyRows.map((row) => [
           row.subCounty,
           formatNumber(row.farmers),

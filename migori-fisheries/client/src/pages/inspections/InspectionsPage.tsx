@@ -40,6 +40,12 @@ type ApiErrorResponse = {
   issues?: ValidationIssue[];
 };
 
+const formatExtensionStatus = (result: Inspection["result"]): string => {
+  if (result === "PASS") return "Completed";
+  if (result === "FAIL") return "Incomplete";
+  return "Pending";
+};
+
 const FormField = ({ label, children }: { label: string; children: ReactNode }) => (
   <label className="block space-y-1">
     <span className="text-sm font-medium text-foreground">{label}</span>
@@ -71,6 +77,10 @@ const InspectionsPage = () => {
     user?.role === "FISHERIES_OFFICER" && user.subCounty && MIGORI_SUBCOUNTIES.includes(user.subCounty as (typeof MIGORI_SUBCOUNTIES)[number])
       ? (user.subCounty as (typeof MIGORI_SUBCOUNTIES)[number])
       : undefined;
+
+  const [statusFilter, setStatusFilter] = useState<"ALL" | Inspection["result"]>("ALL");
+  const [subCountyFilter, setSubCountyFilter] = useState<string>(enforcedSubCounty ?? "ALL");
+  const [wardFilter, setWardFilter] = useState("ALL");
 
   const canWrite = user?.role === "DIRECTOR" || user?.role === "ADMIN" || user?.role === "FISHERIES_OFFICER";
   const canDelete = user?.role === "DIRECTOR" || user?.role === "ADMIN";
@@ -108,31 +118,45 @@ const InspectionsPage = () => {
       feedback: "",
       challenges: "",
       date: new Date().toISOString().slice(0, 10),
-      result: "PENDING"
+      result: "PASS"
     }
   });
 
   const selectedSubCounty = watch("subCounty");
   const availableWards = WARDS_BY_SUBCOUNTY[selectedSubCounty];
+  const filterWardOptions = useMemo(() => {
+    if (subCountyFilter !== "ALL" && MIGORI_SUBCOUNTIES.includes(subCountyFilter as (typeof MIGORI_SUBCOUNTIES)[number])) {
+      return WARDS_BY_SUBCOUNTY[subCountyFilter as (typeof MIGORI_SUBCOUNTIES)[number]];
+    }
+
+    return Array.from(new Set(Object.values(WARDS_BY_SUBCOUNTY).flat())).sort((a, b) => a.localeCompare(b));
+  }, [subCountyFilter]);
 
   const filteredEntries = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return entries;
-    return entries.filter((entry) =>
-      [
-        entry.extensionOfficerName ?? "",
-        entry.extensionOfficerPhone ?? "",
-        entry.farmName,
-        entry.subCounty,
-        entry.ward ?? "",
-        entry.farmerPhoneNumber ?? "",
-        (entry.extensionTopics ?? []).join(", "),
-        entry.feedback ?? "",
-        entry.challenges ?? "",
-        entry.result
-      ].some((value) => value.toLowerCase().includes(term))
-    );
-  }, [entries, searchTerm]);
+
+    return entries.filter((entry) => {
+      const matchesStatus = statusFilter === "ALL" || entry.result === statusFilter;
+      const matchesSubCounty = subCountyFilter === "ALL" || entry.subCounty === subCountyFilter;
+      const matchesWard = wardFilter === "ALL" || entry.ward === wardFilter;
+      const matchesSearch =
+        !term ||
+        [
+          entry.extensionOfficerName ?? "",
+          entry.extensionOfficerPhone ?? "",
+          entry.farmName,
+          entry.subCounty,
+          entry.ward ?? "",
+          entry.farmerPhoneNumber ?? "",
+          (entry.extensionTopics ?? []).join(", "),
+          entry.feedback ?? "",
+          entry.challenges ?? "",
+          formatExtensionStatus(entry.result)
+        ].some((value) => value.toLowerCase().includes(term));
+
+      return matchesStatus && matchesSubCounty && matchesWard && matchesSearch;
+    });
+  }, [entries, searchTerm, statusFilter, subCountyFilter, wardFilter]);
 
   const submitEntry = async (values: ExtensionForm) => {
     const payload: CreateInspectionPayload = {
@@ -169,7 +193,7 @@ const InspectionsPage = () => {
         feedback: "",
         challenges: "",
         date: new Date().toISOString().slice(0, 10),
-        result: "PENDING"
+        result: "PASS"
       });
       setEditingId(null);
       setViewingEntry(null);
@@ -195,6 +219,44 @@ const InspectionsPage = () => {
             placeholder="Search extension entries..."
             className="w-56"
           />
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+          >
+            <option value="ALL">All statuses</option>
+            <option value="PASS">Completed</option>
+            <option value="FAIL">Incomplete</option>
+            <option value="PENDING">Pending</option>
+          </select>
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={subCountyFilter}
+            onChange={(event) => {
+              setSubCountyFilter(event.target.value);
+              setWardFilter("ALL");
+            }}
+            disabled={Boolean(enforcedSubCounty)}
+          >
+            <option value="ALL">All sub-counties</option>
+            {(enforcedSubCounty ? [enforcedSubCounty] : MIGORI_SUBCOUNTIES).map((subCounty) => (
+              <option key={subCounty} value={subCounty}>
+                {subCounty}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={wardFilter}
+            onChange={(event) => setWardFilter(event.target.value)}
+          >
+            <option value="ALL">All wards</option>
+            {filterWardOptions.map((ward) => (
+              <option key={ward} value={ward}>
+                {ward}
+              </option>
+            ))}
+          </select>
           <ExportButton filename="extension-services" sheetName="Extension Services" columns={extensionExportColumns} rows={filteredEntries} />
         </div>
       </div>
@@ -255,11 +317,10 @@ const InspectionsPage = () => {
               <FormField label="Service Date">
                 <Input type="date" {...register("date", { required: true })} />
               </FormField>
-              <FormField label="Inspection Outcome Status">
+              <FormField label="Extension Status">
                 <select className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("result", { required: true })}>
-                  <option value="PENDING">Pending review</option>
-                  <option value="PASS">Pass</option>
-                  <option value="FAIL">Fail</option>
+                  <option value="PASS">Completed</option>
+                  <option value="FAIL">Incomplete</option>
                 </select>
               </FormField>
 
@@ -281,7 +342,7 @@ const InspectionsPage = () => {
                         feedback: "",
                         challenges: "",
                         date: new Date().toISOString().slice(0, 10),
-                        result: "PENDING"
+                        result: "PASS"
                       });
                     }}
                   >
@@ -317,8 +378,8 @@ const InspectionsPage = () => {
               <p className="font-medium">{viewingEntry.extensionOfficerPhone ?? "-"}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Inspection Outcome</p>
-              <StatusBadge status={viewingEntry.result} />
+              <p className="text-muted-foreground">Extension Status</p>
+              <StatusBadge status={formatExtensionStatus(viewingEntry.result)} />
             </div>
             <div>
               <p className="text-muted-foreground">Sub-County</p>
@@ -357,7 +418,7 @@ const InspectionsPage = () => {
       ) : null}
 
       <DataTable
-        headers={["Officer", "Phone", "Sub-County", "Ward", "Farmer", "Farmer Phone", "Topics", "Feedback", "Challenges", "Outcome", "Actions"]}
+        headers={["Officer", "Phone", "Sub-County", "Ward", "Farmer", "Farmer Phone", "Topics", "Feedback", "Challenges", "Extension Status", "Actions"]}
         rows={filteredEntries.map((entry) => [
           entry.extensionOfficerName ?? "-",
           entry.extensionOfficerPhone ?? "-",
@@ -368,7 +429,7 @@ const InspectionsPage = () => {
           (entry.extensionTopics ?? []).join(", "),
           entry.feedback ?? "-",
           entry.challenges ?? "-",
-          <StatusBadge key={`${entry.id}-status`} status={entry.result} />,
+          <StatusBadge key={`${entry.id}-status`} status={formatExtensionStatus(entry.result)} />,
           canWrite ? (
             <div key={`${entry.id}-actions`} className="flex gap-2">
               <Button
@@ -431,7 +492,7 @@ const InspectionsPage = () => {
           )
         ])}
         emptyLabel={getSearchEmptyLabel({
-          searchTerm,
+          searchTerm: searchTerm || (statusFilter !== "ALL" || subCountyFilter !== "ALL" || wardFilter !== "ALL" ? "selected filters" : ""),
           isLoading,
           loadingLabel: "Loading extension records...",
           emptyLabel: "No extension records found."

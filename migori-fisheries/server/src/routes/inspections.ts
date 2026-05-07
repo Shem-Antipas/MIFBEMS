@@ -52,7 +52,7 @@ router.use(authenticate);
 
 router.get(
   "/",
-  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]),
+  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "FARMER"]),
   asyncHandler(async (req, res) => {
     if (!req.user) {
       throw new HttpError(401, "Unauthorized");
@@ -62,7 +62,20 @@ router.get(
       throw new HttpError(403, "Your account is not assigned to a sub-county");
     }
 
-    const where = req.user.role === "FISHERIES_OFFICER" ? { subCounty: req.user.subCounty } : {};
+    const farmerUser =
+      req.user.role === "FARMER"
+        ? await prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true, subCounty: true } })
+        : null;
+
+    const where =
+      req.user.role === "FISHERIES_OFFICER"
+        ? { subCounty: req.user.subCounty }
+        : req.user.role === "FARMER"
+          ? {
+              subCounty: farmerUser?.subCounty ?? "__no_farmer_subcounty__",
+              farmName: { contains: farmerUser?.name ?? "__no_farmer_name__", mode: "insensitive" as const }
+            }
+          : {};
 
     const inspections = await prisma.inspection.findMany({
       where,

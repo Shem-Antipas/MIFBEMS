@@ -12,7 +12,8 @@ interface NavbarProps {
 const Navbar = ({ onMenuClick }: NavbarProps) => {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
-  const canApprove = user?.role === "DIRECTOR" || user?.role === "ADMIN";
+  const canUseNotifications =
+    user?.role === "DIRECTOR" || user?.role === "ADMIN" || user?.role === "FISHERIES_OFFICER" || user?.role === "FARMER";
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b bg-card/95 px-3 py-3 backdrop-blur sm:px-6 lg:static lg:py-4">
@@ -37,7 +38,7 @@ const Navbar = ({ onMenuClick }: NavbarProps) => {
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        {canApprove ? <ApprovalBell /> : null}
+        {canUseNotifications ? <ApprovalBell /> : null}
         <Button
           type="button"
           variant="outline"

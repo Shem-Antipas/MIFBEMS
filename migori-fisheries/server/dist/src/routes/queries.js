@@ -25,7 +25,7 @@ router.get("/", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALY
     const where = req.user.role === "FARMER"
         ? { userId: req.user.id }
         : req.user.role === "FISHERIES_OFFICER"
-            ? { user: { subCounty: req.user.subCounty ?? undefined } }
+            ? { user: { subCounty: req.user.subCounty ?? "__no_officer_subcounty__" } }
             : {};
     const queries = await prisma.query.findMany({
         where,
@@ -53,7 +53,7 @@ router.patch("/:id/reply", validate({ params: idParamSchema, body: replySchema }
     const payload = req.body;
     const query = await prisma.query.findUnique({
         where: { id },
-        include: { user: { select: { subCounty: true } } }
+        include: { user: { select: { id: true, name: true, subCounty: true } } }
     });
     if (!query) {
         throw new HttpError(404, "Query not found");
@@ -61,17 +61,48 @@ router.patch("/:id/reply", validate({ params: idParamSchema, body: replySchema }
     if (req.user?.role === "FISHERIES_OFFICER" && query.user.subCounty !== req.user.subCounty) {
         throw new HttpError(403, "You can only respond to queries from your sub-county");
     }
-    const updated = await prisma.query.update({
-        where: { id },
-        data: {
-            reply: payload.reply,
-            status: payload.status ?? "RESOLVED"
-        }
+    const officer = req.user
+        ? await prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } })
+        : null;
+    const replyByName = officer?.name ?? "Fisheries Office";
+    const updated = await prisma.$transaction(async (tx) => {
+        const repliedQuery = await tx.query.update({
+            where: { id },
+            data: {
+                reply: payload.reply,
+                status: payload.status ?? "RESOLVED",
+                replyById: req.user?.id,
+                replyByName,
+                repliedAt: new Date()
+            },
+            include: { user: { select: { id: true, name: true, email: true, subCounty: true } } }
+        });
+        await tx.advisory.create({
+            data: {
+                title: `Response: ${query.subject}`,
+                message: payload.reply,
+                type: "INFO",
+                fromName: replyByName,
+                subCounty: query.user.subCounty,
+                targetUserId: query.user.id
+            }
+        });
+        return repliedQuery;
     });
     res.status(200).json({ data: updated });
 }));
 router.patch("/:id/resolve", validate({ params: idParamSchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]), auditLog("QUERY"), asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const existing = await prisma.query.findUnique({
+        where: { id },
+        include: { user: { select: { subCounty: true } } }
+    });
+    if (!existing) {
+        throw new HttpError(404, "Query not found");
+    }
+    if (req.user?.role === "FISHERIES_OFFICER" && existing.user.subCounty !== req.user.subCounty) {
+        throw new HttpError(403, "You can only resolve queries from your sub-county");
+    }
     const query = await prisma.query.update({
         where: { id },
         data: { status: "RESOLVED" }

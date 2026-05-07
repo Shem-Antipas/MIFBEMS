@@ -81,6 +81,8 @@ const licenseExportColumns = [
 const LicensesPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [editingLicenseId, setEditingLicenseId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"ALL" | License["status"]>("ALL");
+  const [subCountyFilter, setSubCountyFilter] = useState("ALL");
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role;
@@ -89,6 +91,10 @@ const LicensesPage = () => {
   const canRecordLicense = userRole === "FISHERIES_OFFICER";
   const canApproveLicense = userRole === "DIRECTOR" || userRole === "ADMIN";
   const canDeleteLicense = userRole === "DIRECTOR" || userRole === "ADMIN";
+  const enforcedSubCounty =
+    userRole === "FISHERIES_OFFICER" && user?.subCounty && MIGORI_SUBCOUNTIES.includes(user.subCounty as (typeof MIGORI_SUBCOUNTIES)[number])
+      ? user.subCounty
+      : undefined;
 
   const availableFarmers = useMemo(
     () =>
@@ -148,28 +154,34 @@ const LicensesPage = () => {
 
   const filteredLicenses = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return licenses;
 
-    return licenses.filter((license) =>
-      [
-        license.licenseNo,
-        license.holderName ?? license.farmer?.name ?? "",
-        license.holderIdNumber ?? license.farmer?.idNumber ?? "",
-        license.holderPhoneNumber ?? license.farmer?.phoneNumber ?? "",
-        license.subCounty ?? license.farmer?.subCounty ?? "",
-        license.ward ?? license.farmer?.ward ?? "",
-        license.receiptNo ?? "",
-        license.type,
-        license.holderEmail ?? license.farmer?.email ?? "",
-        license.beachName ?? "",
-        license.market ?? "",
-        license.bmuName ?? "",
-        license.licensedByName ?? "",
-        String(license.amountLicensed ?? ""),
-        license.status
-      ].some((value) => value.toLowerCase().includes(term))
-    );
-  }, [licenses, searchTerm]);
+    return licenses.filter((license) => {
+      const licenseSubCounty = license.subCounty ?? license.farmer?.subCounty ?? "";
+      const matchesStatus = statusFilter === "ALL" || license.status === statusFilter;
+      const matchesSubCounty = subCountyFilter === "ALL" || licenseSubCounty === subCountyFilter;
+      const matchesSearch =
+        !term ||
+        [
+          license.licenseNo,
+          license.holderName ?? license.farmer?.name ?? "",
+          license.holderIdNumber ?? license.farmer?.idNumber ?? "",
+          license.holderPhoneNumber ?? license.farmer?.phoneNumber ?? "",
+          licenseSubCounty,
+          license.ward ?? license.farmer?.ward ?? "",
+          license.receiptNo ?? "",
+          license.type,
+          license.holderEmail ?? license.farmer?.email ?? "",
+          license.beachName ?? "",
+          license.market ?? "",
+          license.bmuName ?? "",
+          license.licensedByName ?? "",
+          String(license.amountLicensed ?? ""),
+          license.status
+        ].some((value) => value.toLowerCase().includes(term));
+
+      return matchesStatus && matchesSubCounty && matchesSearch;
+    });
+  }, [licenses, searchTerm, statusFilter, subCountyFilter]);
 
   const submitLicense = async (values: LicenseForm) => {
     try {
@@ -253,6 +265,31 @@ const LicensesPage = () => {
             placeholder="Search licenses..."
             className="w-56"
           />
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+          >
+            <option value="ALL">All statuses</option>
+            <option value="PENDING">Pending</option>
+            <option value="VALID">Valid</option>
+            <option value="EXPIRED">Expired</option>
+            <option value="REVOKED">Revoked</option>
+            <option value="REJECTED">Rejected</option>
+          </select>
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={subCountyFilter}
+            onChange={(event) => setSubCountyFilter(event.target.value)}
+            disabled={Boolean(enforcedSubCounty)}
+          >
+            <option value="ALL">All sub-counties</option>
+            {(enforcedSubCounty ? [enforcedSubCounty] : MIGORI_SUBCOUNTIES).map((subCounty) => (
+              <option key={subCounty} value={subCounty}>
+                {subCounty}
+              </option>
+            ))}
+          </select>
           <ExportButton filename="licenses" sheetName="Licenses" columns={licenseExportColumns} rows={filteredLicenses} />
         </div>
       </div>
@@ -294,6 +331,7 @@ const LicensesPage = () => {
                       setValue("ward", WARDS_BY_SUBCOUNTY[nextSubCounty][0]);
                     }
                   })}
+                  disabled={Boolean(enforcedSubCounty)}
                 >
                   {MIGORI_SUBCOUNTIES.map((subCounty) => (
                     <option key={subCounty} value={subCounty}>
@@ -488,7 +526,7 @@ const LicensesPage = () => {
           )
         ])}
         emptyLabel={getSearchEmptyLabel({
-          searchTerm,
+          searchTerm: searchTerm || (statusFilter !== "ALL" || subCountyFilter !== "ALL" ? "selected filters" : ""),
           isLoading,
           loadingLabel: "Loading licenses...",
           emptyLabel: "No licenses found."

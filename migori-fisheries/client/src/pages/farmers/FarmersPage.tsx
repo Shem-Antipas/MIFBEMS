@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { AxiosError } from "axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Upload } from "lucide-react";
 import DataTable from "@/components/shared/DataTable";
 import ExportButton from "@/components/shared/ExportButton";
 import StatusBadge from "@/components/shared/StatusBadge";
@@ -22,6 +23,8 @@ const farmerExportColumns = [
   { header: "ID No.", value: (farmer: Farmer) => farmer.idNumber ?? "" },
   { header: "Phone Number", value: (farmer: Farmer) => farmer.phoneNumber ?? "" },
   { header: "Email", value: (farmer: Farmer) => farmer.email ?? "" },
+  { header: "Gender", value: (farmer: Farmer) => farmer.gender ?? "" },
+  { header: "Age Bracket", value: (farmer: Farmer) => farmer.ageBracket ?? "" },
   { header: "Sub-County", value: "subCounty" },
   { header: "Ward", value: "ward" },
   { header: "Production Unit", value: "farmType" },
@@ -38,7 +41,12 @@ const farmerExportColumns = [
 
 const FarmersPage = () => {
   const [open, setOpen] = useState(false);
+  const [editingFarmer, setEditingFarmer] = useState<Farmer | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | Farmer["status"]>("ALL");
+  const [subCountyFilter, setSubCountyFilter] = useState("ALL");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
   const userRole = useAuthStore((state) => state.user?.role);
   const userSubCounty = useAuthStore((state) => state.user?.subCounty ?? null);
   const queryClient = useQueryClient();
@@ -53,11 +61,36 @@ const FarmersPage = () => {
       void queryClient.invalidateQueries({ queryKey: ["reports", "summary"] });
     }
   });
+  const updateFarmer = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof farmersApi.update>[1] }) =>
+      farmersApi.update(id, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["farmers"] });
+      void queryClient.invalidateQueries({ queryKey: ["reports", "summary"] });
+    }
+  });
   const deleteFarmer = useMutation({
     mutationFn: farmersApi.remove,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["farmers"] });
       void queryClient.invalidateQueries({ queryKey: ["reports", "summary"] });
+    }
+  });
+  const importFarmers = useMutation({
+    mutationFn: farmersApi.importSpreadsheet,
+    onSuccess: (result) => {
+      setImportFile(null);
+      setImportErrors(result.errors);
+      void queryClient.invalidateQueries({ queryKey: ["farmers"] });
+      void queryClient.invalidateQueries({ queryKey: ["reports", "summary"] });
+
+      toast.success(
+        `Import complete: ${result.createdCount} created, ${result.updatedCount} updated, ${result.skippedCount} skipped.`
+      );
+
+      if (result.errors.length > 0) {
+        toast.warning(`${result.errors.length} row${result.errors.length === 1 ? "" : "s"} need review.`);
+      }
     }
   });
 
@@ -76,25 +109,30 @@ const FarmersPage = () => {
 
   const filteredFarmers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return farmers;
 
-    return farmers.filter((farmer) =>
-      [
-        farmer.farmerCode,
-        farmer.name,
-        farmer.idNumber ?? "",
-        farmer.phoneNumber ?? "",
-        farmer.email ?? "",
-        farmer.subCounty,
-        farmer.ward,
-        farmer.farmType,
-        farmer.species.join(", "),
-        farmer.productionKg.toString(),
-        farmer.numberOfPonds.toString(),
-        farmer.status
-      ].some((value) => value.toLowerCase().includes(term))
-    );
-  }, [farmers, searchTerm]);
+    return farmers.filter((farmer) => {
+      const matchesStatus = statusFilter === "ALL" || farmer.status === statusFilter;
+      const matchesSubCounty = subCountyFilter === "ALL" || farmer.subCounty === subCountyFilter;
+      const matchesSearch =
+        !term ||
+        [
+          farmer.farmerCode,
+          farmer.name,
+          farmer.idNumber ?? "",
+          farmer.phoneNumber ?? "",
+          farmer.email ?? "",
+          farmer.subCounty,
+          farmer.ward,
+          farmer.farmType,
+          farmer.species.join(", "),
+          farmer.productionKg.toString(),
+          farmer.numberOfPonds.toString(),
+          farmer.status
+        ].some((value) => value.toLowerCase().includes(term));
+
+      return matchesStatus && matchesSubCounty && matchesSearch;
+    });
+  }, [farmers, searchTerm, statusFilter, subCountyFilter]);
 
   return (
     <section className="space-y-4">
@@ -110,6 +148,30 @@ const FarmersPage = () => {
             placeholder="Search farmers..."
             className="w-56"
           />
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+          >
+            <option value="ALL">All statuses</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+            <option value="PARTIALLY_ACTIVE">Partially active</option>
+            <option value="SUSPENDED">Suspended</option>
+          </select>
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={subCountyFilter}
+            onChange={(event) => setSubCountyFilter(event.target.value)}
+            disabled={Boolean(enforcedSubCounty)}
+          >
+            <option value="ALL">All sub-counties</option>
+            {(enforcedSubCounty ? [enforcedSubCounty] : MIGORI_SUBCOUNTIES).map((subCounty) => (
+              <option key={subCounty} value={subCounty}>
+                {subCounty}
+              </option>
+            ))}
+          </select>
           <ExportButton
             filename="farmers-registry"
             sheetName="Farmers"
@@ -117,7 +179,13 @@ const FarmersPage = () => {
             rows={filteredFarmers}
           />
           {canCreate ? (
-            <Button type="button" onClick={() => setOpen(true)}>
+            <Button
+              type="button"
+              onClick={() => {
+                setEditingFarmer(null);
+                setOpen(true);
+              }}
+            >
               Add Farmer
             </Button>
           ) : null}
@@ -130,6 +198,70 @@ const FarmersPage = () => {
         </div>
       ) : null}
 
+      {canCreate ? (
+        <div className="rounded-lg border bg-card p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold">Bulk Import Farmers</h2>
+              <p className="text-sm text-muted-foreground">
+                Upload Excel or CSV files with Farmer ID, Name, ID No., Phone, Email, Gender, Age Bracket, Sub-County, Ward,
+                Production Unit, Species, Production (Kg), unit counts, Status, Latitude, Longitude, and Created At.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <label className="flex min-w-64 cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm">
+                <Upload className="h-4 w-4 text-muted-foreground" />
+                <span className="truncate">{importFile ? importFile.name : "Choose .xlsx, .xls, or .csv file"}</span>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="sr-only"
+                  onChange={(event) => {
+                    setImportErrors([]);
+                    setImportFile(event.target.files?.[0] ?? null);
+                  }}
+                />
+              </label>
+              <Button
+                type="button"
+                disabled={!importFile || importFarmers.isPending}
+                onClick={async () => {
+                  if (!importFile) {
+                    toast.error("Please choose an Excel or CSV file first.");
+                    return;
+                  }
+
+                  try {
+                    await importFarmers.mutateAsync(importFile);
+                  } catch (mutationError) {
+                    const message =
+                      (mutationError as AxiosError<{ error?: string }>).response?.data?.error ??
+                      "Failed to import farmers.";
+                    toast.error(message);
+                  }
+                }}
+              >
+                {importFarmers.isPending ? "Importing..." : "Import Farmers"}
+              </Button>
+            </div>
+          </div>
+
+          {importErrors.length > 0 ? (
+            <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <p className="font-medium">Rows that need attention</p>
+              <ul className="mt-2 max-h-32 list-disc space-y-1 overflow-y-auto pl-5">
+                {importErrors.slice(0, 12).map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+              {importErrors.length > 12 ? (
+                <p className="mt-2 text-xs">Showing first 12 of {importErrors.length} row issues.</p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <DataTable
         headers={[
           "Farmer ID",
@@ -137,6 +269,8 @@ const FarmersPage = () => {
           "ID No.",
           "Phone",
           "Email",
+          "Gender",
+          "Age Bracket",
           "Sub-County",
           "Ward",
           "Production Unit",
@@ -154,6 +288,8 @@ const FarmersPage = () => {
           farmer.idNumber ?? "-",
           farmer.phoneNumber ?? "-",
           farmer.email ?? "-",
+          farmer.gender ? (farmer.gender === "MALE" ? "Male" : "Female") : "-",
+          farmer.ageBracket ? (farmer.ageBracket === "YOUTH" ? "Youth" : "Adult") : "-",
           farmer.subCounty,
           farmer.ward,
           farmer.farmType,
@@ -166,26 +302,39 @@ const FarmersPage = () => {
           canCreate || canDelete ? (
             <div className="flex flex-wrap gap-2">
               {canCreate ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={updateFarmerStatus.isPending}
-                  onClick={async () => {
-                    const nextStatus = farmer.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
-                    try {
-                      await updateFarmerStatus.mutateAsync({ id: farmer.id, status: nextStatus });
-                      toast.success(`Farmer marked ${nextStatus.toLowerCase()} successfully`);
-                    } catch (mutationError) {
-                      const message =
-                        (mutationError as AxiosError<{ error?: string }>).response?.data?.error ??
-                        "Failed to update farmer status.";
-                      toast.error(message);
-                    }
-                  }}
-                >
-                  {farmer.status === "ACTIVE" ? "Mark inactive" : "Mark active"}
-                </Button>
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setEditingFarmer(farmer);
+                      setOpen(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={updateFarmerStatus.isPending}
+                    onClick={async () => {
+                      const nextStatus = farmer.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+                      try {
+                        await updateFarmerStatus.mutateAsync({ id: farmer.id, status: nextStatus });
+                        toast.success(`Farmer marked ${nextStatus.toLowerCase()} successfully`);
+                      } catch (mutationError) {
+                        const message =
+                          (mutationError as AxiosError<{ error?: string }>).response?.data?.error ??
+                          "Failed to update farmer status.";
+                        toast.error(message);
+                      }
+                    }}
+                  >
+                    {farmer.status === "ACTIVE" ? "Mark inactive" : "Mark active"}
+                  </Button>
+                </>
               ) : null}
               {canDelete ? (
                 <Button
@@ -216,28 +365,40 @@ const FarmersPage = () => {
           ) : "-"
         ])}
         emptyLabel={getSearchEmptyLabel({
-          searchTerm,
+          searchTerm: searchTerm || (statusFilter !== "ALL" || subCountyFilter !== "ALL" ? "selected filters" : ""),
           isLoading,
           loadingLabel: "Loading farmers...",
           emptyLabel: "No farmers found."
         })}
+        pageSize={25}
       />
 
       <FarmerModal
+        key={editingFarmer?.id ?? "new-farmer"}
         open={open}
-        onClose={() => setOpen(false)}
-        isSubmitting={createFarmer.isPending}
+        onClose={() => {
+          setOpen(false);
+          setEditingFarmer(null);
+        }}
+        isSubmitting={createFarmer.isPending || updateFarmer.isPending}
         canRecordLicense={canRecordLicense}
         enforcedSubCounty={enforcedSubCounty}
+        initialFarmer={editingFarmer}
         onSubmit={async (payload) => {
           try {
-            await createFarmer.mutateAsync(payload);
-            toast.success("Farmer created successfully");
+            if (editingFarmer) {
+              await updateFarmer.mutateAsync({ id: editingFarmer.id, payload });
+              toast.success("Farmer updated successfully");
+            } else {
+              await createFarmer.mutateAsync(payload);
+              toast.success("Farmer created successfully");
+            }
             setOpen(false);
+            setEditingFarmer(null);
           } catch (mutationError) {
             const message =
               (mutationError as AxiosError<{ error?: string }>).response?.data?.error ??
-              "Failed to create farmer.";
+              (editingFarmer ? "Failed to update farmer." : "Failed to create farmer.");
             toast.error(message);
           }
         }}

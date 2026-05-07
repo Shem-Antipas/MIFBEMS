@@ -1,12 +1,16 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, CheckCircle2, ClipboardCheck, FileText, FolderClock } from "lucide-react";
+import { Bell, CheckCircle2, ClipboardCheck, FileQuestion, FileText, FolderClock, Megaphone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+import { advisoriesApi } from "@/api/advisories";
 import { captureFisheriesApi } from "@/api/captureFisheries";
+import { inspectionsApi } from "@/api/inspections";
 import { licensesApi } from "@/api/licenses";
 import { projectsApi } from "@/api/projects";
+import { queriesApi } from "@/api/queries";
 import { Button } from "@/components/ui/button";
+import { useAuthStore } from "@/store/authStore";
 
 type ApprovalItem = {
   id: string;
@@ -25,22 +29,50 @@ const formatDate = (value?: string): string => {
 const ApprovalBell = () => {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const user = useAuthStore((state) => state.user);
+  const canSeeApprovals = user?.role === "DIRECTOR" || user?.role === "ADMIN";
+  const canSeeQueries = user?.role === "DIRECTOR" || user?.role === "ADMIN" || user?.role === "FISHERIES_OFFICER";
+  const isFarmer = user?.role === "FARMER";
 
   const { data: licenses = [] } = useQuery({
     queryKey: ["approval-notifications", "licenses"],
     queryFn: licensesApi.list,
+    enabled: canSeeApprovals,
     refetchInterval: 60_000
   });
 
   const { data: captureRecords = [] } = useQuery({
     queryKey: ["approval-notifications", "capture-fisheries"],
     queryFn: captureFisheriesApi.list,
+    enabled: canSeeApprovals,
     refetchInterval: 60_000
   });
 
   const { data: projects = [] } = useQuery({
     queryKey: ["approval-notifications", "projects"],
     queryFn: projectsApi.list,
+    enabled: canSeeApprovals,
+    refetchInterval: 60_000
+  });
+
+  const { data: queries = [] } = useQuery({
+    queryKey: ["notification-bell", "queries"],
+    queryFn: queriesApi.list,
+    enabled: canSeeQueries || isFarmer,
+    refetchInterval: 60_000
+  });
+
+  const { data: advisories = [] } = useQuery({
+    queryKey: ["notification-bell", "advisories"],
+    queryFn: advisoriesApi.list,
+    enabled: isFarmer,
+    refetchInterval: 60_000
+  });
+
+  const { data: inspections = [] } = useQuery({
+    queryKey: ["notification-bell", "inspections"],
+    queryFn: inspectionsApi.list,
+    enabled: isFarmer,
     refetchInterval: 60_000
   });
 
@@ -78,10 +110,58 @@ const ApprovalBell = () => {
         createdAt: project.createdAt
       }));
 
-    return [...pendingLicenses, ...pendingCaptureRecords, ...pendingProjects]
+    const pendingQueries = queries
+      .filter((query) => query.status === "PENDING")
+      .map((query) => ({
+        id: `query-${query.id}`,
+        title: "Farmer query",
+        description: `${query.user?.name ?? "Farmer"} - ${query.subject}`,
+        path: "/queries",
+        icon: FileQuestion,
+        createdAt: query.createdAt
+      }));
+
+    const farmerQueryReplies = queries
+      .filter((query) => query.status === "RESOLVED" && query.reply)
+      .map((query) => ({
+        id: `query-reply-${query.id}`,
+        title: "Query response",
+        description: query.subject,
+        path: "/farmer/queries",
+        icon: FileQuestion,
+        createdAt: query.repliedAt ?? query.updatedAt
+      }));
+
+    const farmerAdvisories = advisories.slice(0, 5).map((advisory) => ({
+      id: `advisory-${advisory.id}`,
+      title: advisory.targetUserId ? "Direct advisory" : "Advisory",
+      description: advisory.title,
+      path: "/farmer/advisories",
+      icon: Megaphone,
+      createdAt: advisory.createdAt
+    }));
+
+    const farmerExtensionFeedback = inspections
+      .filter((inspection) => inspection.feedback || inspection.challenges)
+      .map((inspection) => ({
+        id: `extension-feedback-${inspection.id}`,
+        title: "Extension feedback",
+        description: `${inspection.farmName} - ${inspection.feedback ?? inspection.challenges ?? "Feedback available"}`,
+        path: "/inspections",
+        icon: ClipboardCheck,
+        createdAt: inspection.createdAt
+      }));
+
+    return [
+      ...pendingLicenses,
+      ...pendingCaptureRecords,
+      ...pendingProjects,
+      ...(canSeeQueries ? pendingQueries : []),
+      ...(isFarmer ? [...farmerQueryReplies, ...farmerAdvisories, ...farmerExtensionFeedback] : [])
+    ]
       .sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime())
       .slice(0, 8);
-  }, [captureRecords, licenses, projects]);
+  }, [advisories, canSeeQueries, captureRecords, inspections, isFarmer, licenses, projects, queries]);
 
   const pendingCount = approvalItems.length;
 
@@ -107,9 +187,9 @@ const ApprovalBell = () => {
       {open ? (
         <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-xl">
           <div className="border-b px-4 py-3">
-            <p className="text-sm font-semibold">Approvals</p>
+            <p className="text-sm font-semibold">Notifications</p>
             <p className="text-xs text-muted-foreground">
-              {pendingCount > 0 ? `${pendingCount} item${pendingCount === 1 ? "" : "s"} need review` : "No pending approvals"}
+              {pendingCount > 0 ? `${pendingCount} item${pendingCount === 1 ? "" : "s"} need attention` : "No pending notifications"}
             </p>
           </div>
 
