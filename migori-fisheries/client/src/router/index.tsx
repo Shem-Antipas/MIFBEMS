@@ -76,6 +76,9 @@ const AppRouter = () => {
 
           <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "ADMIN", "DATA_ANALYST"]} />}>
             <Route path="/reports" element={<PageLayout><ReportsPage /></PageLayout>} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={["DIRECTOR", "ADMIN", "DATA_ANALYST", "FISHERIES_OFFICER"]} />}>
             <Route path="/analytics" element={<PageLayout><AnalyticsPage /></PageLayout>} />
           </Route>
 

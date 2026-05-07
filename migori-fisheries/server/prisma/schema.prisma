@@ -124,6 +124,8 @@ enum LicenseType {
   FISHERMAN
   FISH_TRADER
   BOAT_OWNER
+  MOTORIZED_BOAT
+  NON_MOTORIZED_BOAT
   FISH_MOVEMENT_PERMIT
   BOAT_LICENSE
   NEW_BOARD_REGISTRATION
@@ -250,15 +252,25 @@ enum CaptureApprovalStatus {
 
 model Inspection {
   id        String           @id @default(cuid())
+  entryCode String           @unique @default(dbgenerated("('MIF-EXT-'::text || lpad((nextval('\"Inspection_entryCode_seq\"'::regclass))::text, 6, '0'::text))"))
   farmName  String
   extensionOfficerName String?
   extensionOfficerPhone String?
   subCounty String
   ward      String           @default("Unspecified")
+  farmerNumber String?
   farmerPhoneNumber String?
+  gender    Gender           @default(MALE)
+  ageBracket AgeBracket      @default(ADULT)
   extensionTopics String[]   @default([])
   feedback  String?
   challenges String?
+  latitude  Float?
+  longitude Float?
+  photos    Json             @default("[]")
+  approvalStatus ExtensionApprovalStatus @default(PENDING)
+  approvedById String?
+  approvedAt DateTime?
   officerId String
   officer   User             @relation(fields: [officerId], references: [id])
   date      DateTime
@@ -268,12 +280,19 @@ model Inspection {
 
   @@index([subCounty])
   @@index([officerId])
+  @@index([approvalStatus])
 }
 
 enum InspectionResult {
   PASS
   FAIL
   PENDING
+}
+
+enum ExtensionApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model BlueEconomyProject {

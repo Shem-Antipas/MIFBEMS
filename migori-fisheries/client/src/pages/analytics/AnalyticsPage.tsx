@@ -24,7 +24,11 @@ import { projectsApi } from "@/api/projects";
 import { useCaptureFisheries } from "@/hooks/useCaptureFisheries";
 import { useFarmers } from "@/hooks/useFarmers";
 import { useLicenses } from "@/hooks/useLicenses";
-import { MIGORI_SUBCOUNTIES } from "@/lib/locationData";
+import { useAuthStore } from "@/store/authStore";
+import { buildMonthlyCaptureTrend, hasMonthlyCaptureTrendData } from "@/lib/captureAnalytics";
+import { formatCurrency, getLicenseRevenue } from "@/lib/licenseRevenue";
+import { MIGORI_SUBCOUNTIES, WARDS_BY_SUBCOUNTY, type MigoriSubCounty } from "@/lib/locationData";
+import { ALL_YEARS, collectAvailableYears, matchesSelectedYear } from "@/lib/yearFilter";
 import type { ExcelColumn } from "@/lib/exportToExcel";
 
 type AnalyticsExportRow = {
@@ -56,6 +60,12 @@ type WardAnalyticsRow = {
   productionKg: number;
   farmers: number;
   ponds: number;
+};
+
+type RevenueRow = {
+  name: string;
+  revenue: number;
+  licenses: number;
 };
 
 const analyticsExportColumns = [
@@ -124,7 +134,20 @@ const ChartCard = ({ title, children, className = "" }: { title: string; childre
 
 const AnalyticsPage = () => {
   const [selectedSubCounty, setSelectedSubCounty] = useState<string>("All");
+  const [selectedWard, setSelectedWard] = useState<string>("All");
+  const [selectedYear, setSelectedYear] = useState<string>(ALL_YEARS);
   const [valueDisplayMode, setValueDisplayMode] = useState<"FIGURE" | "PERCENT">("FIGURE");
+  const user = useAuthStore((state) => state.user);
+  const isOfficer = user?.role === "FISHERIES_OFFICER";
+  const officerSubCounty =
+    user?.subCounty && MIGORI_SUBCOUNTIES.includes(user.subCounty as MigoriSubCounty)
+      ? user.subCounty
+      : undefined;
+  const selectedScopeSubCounty = isOfficer ? officerSubCounty ?? "All" : selectedSubCounty;
+  const availableAnalyticsWards =
+    selectedScopeSubCounty !== "All" && MIGORI_SUBCOUNTIES.includes(selectedScopeSubCounty as MigoriSubCounty)
+      ? WARDS_BY_SUBCOUNTY[selectedScopeSubCounty as MigoriSubCounty]
+      : [];
   const { data: farmers = [] } = useFarmers();
   const { data: licenses = [] } = useLicenses();
   const { data: captureRecords = [] } = useCaptureFisheries();
@@ -137,44 +160,89 @@ const AnalyticsPage = () => {
     queryFn: projectsApi.list
   });
 
+  const availableYears = useMemo(
+    () =>
+      collectAvailableYears(
+        farmers.map((farmer) => farmer.createdAt),
+        licenses.map((license) => license.issuedDate),
+        captureRecords.map((record) => record.year ?? record.fishingDate),
+        extensionEntries.map((entry) => entry.date),
+        projects.map((project) => project.startDate)
+      ),
+    [captureRecords, extensionEntries, farmers, licenses, projects]
+  );
+  const getLicenseSubCounty = (license: (typeof licenses)[number]): string =>
+    license.subCounty ?? license.farmer?.subCounty ?? "";
+  const getLicenseWard = (license: (typeof licenses)[number]): string =>
+    license.ward ?? license.farmer?.ward ?? "";
+  const matchesSelectedSubCounty = (subCounty: string): boolean =>
+    selectedScopeSubCounty === "All" || subCounty === selectedScopeSubCounty;
+  const matchesSelectedWard = (ward?: string | null): boolean =>
+    selectedWard === "All" || ward === selectedWard || ward === "All wards";
+
+  const yearFilteredFarmers = useMemo(
+    () => farmers.filter((farmer) => matchesSelectedYear(selectedYear, farmer.createdAt)),
+    [farmers, selectedYear]
+  );
+
+  const yearFilteredLicenses = useMemo(
+    () => licenses.filter((license) => matchesSelectedYear(selectedYear, license.issuedDate)),
+    [licenses, selectedYear]
+  );
+
+  const yearFilteredCaptureRecords = useMemo(
+    () => captureRecords.filter((record) => matchesSelectedYear(selectedYear, record.year ?? record.fishingDate)),
+    [captureRecords, selectedYear]
+  );
+
+  const yearFilteredProjects = useMemo(
+    () => projects.filter((project) => matchesSelectedYear(selectedYear, project.startDate)),
+    [projects, selectedYear]
+  );
+
+  const yearFilteredExtensionEntries = useMemo(
+    () => extensionEntries.filter((entry) => matchesSelectedYear(selectedYear, entry.date)),
+    [extensionEntries, selectedYear]
+  );
+
   const filteredFarmers = useMemo(
     () =>
-      selectedSubCounty === "All"
-        ? farmers
-        : farmers.filter((farmer) => farmer.subCounty === selectedSubCounty),
-    [farmers, selectedSubCounty]
+      selectedScopeSubCounty === "All"
+        ? yearFilteredFarmers
+        : yearFilteredFarmers.filter((farmer) => farmer.subCounty === selectedScopeSubCounty && matchesSelectedWard(farmer.ward)),
+    [selectedScopeSubCounty, selectedWard, yearFilteredFarmers]
   );
 
   const filteredLicenses = useMemo(
     () =>
-      selectedSubCounty === "All"
-        ? licenses
-        : licenses.filter((license) => license.farmer?.subCounty === selectedSubCounty),
-    [licenses, selectedSubCounty]
+      selectedScopeSubCounty === "All"
+        ? yearFilteredLicenses
+        : yearFilteredLicenses.filter((license) => matchesSelectedSubCounty(getLicenseSubCounty(license)) && matchesSelectedWard(getLicenseWard(license))),
+    [selectedScopeSubCounty, selectedWard, yearFilteredLicenses]
   );
 
   const filteredCaptureRecords = useMemo(
     () =>
-      selectedSubCounty === "All"
-        ? captureRecords
-        : captureRecords.filter((record) => record.subCounty === selectedSubCounty),
-    [captureRecords, selectedSubCounty]
+      selectedScopeSubCounty === "All"
+        ? yearFilteredCaptureRecords
+        : yearFilteredCaptureRecords.filter((record) => record.subCounty === selectedScopeSubCounty && matchesSelectedWard(record.ward)),
+    [selectedScopeSubCounty, selectedWard, yearFilteredCaptureRecords]
   );
 
   const filteredProjects = useMemo(
     () =>
-      selectedSubCounty === "All"
-        ? projects
-        : projects.filter((project) => project.subCounty === selectedSubCounty),
-    [projects, selectedSubCounty]
+      selectedScopeSubCounty === "All"
+        ? yearFilteredProjects
+        : yearFilteredProjects.filter((project) => project.subCounty === selectedScopeSubCounty && matchesSelectedWard(project.ward)),
+    [selectedScopeSubCounty, selectedWard, yearFilteredProjects]
   );
 
   const filteredExtensionEntries = useMemo(
     () =>
-      selectedSubCounty === "All"
-        ? extensionEntries
-        : extensionEntries.filter((entry) => entry.subCounty === selectedSubCounty),
-    [extensionEntries, selectedSubCounty]
+      selectedScopeSubCounty === "All"
+        ? yearFilteredExtensionEntries
+        : yearFilteredExtensionEntries.filter((entry) => entry.subCounty === selectedScopeSubCounty && matchesSelectedWard(entry.ward)),
+    [selectedScopeSubCounty, selectedWard, yearFilteredExtensionEntries]
   );
 
   const farmProductionKg = useMemo(
@@ -187,14 +255,16 @@ const AnalyticsPage = () => {
     [filteredCaptureRecords]
   );
 
+  const captureMonthlyRows = useMemo(() => buildMonthlyCaptureTrend(filteredCaptureRecords), [filteredCaptureRecords]);
+
   const totalProductionKg = farmProductionKg + captureProductionKg;
 
   const subCountyRows = useMemo<ProductionRow[]>(() => {
     return MIGORI_SUBCOUNTIES.map((subCounty) => {
-      const farmersInSubCounty = farmers.filter((farmer) => farmer.subCounty === subCounty);
-      const licensesInSubCounty = licenses.filter((license) => license.farmer?.subCounty === subCounty);
+      const farmersInSubCounty = yearFilteredFarmers.filter((farmer) => farmer.subCounty === subCounty);
+      const licensesInSubCounty = yearFilteredLicenses.filter((license) => getLicenseSubCounty(license) === subCounty);
       const farmProduction = farmersInSubCounty.reduce((total, farmer) => total + farmer.productionKg, 0);
-      const captureProduction = captureRecords
+      const captureProduction = yearFilteredCaptureRecords
         .filter((record) => record.subCounty === subCounty)
         .reduce((total, record) => total + record.catchKg, 0);
 
@@ -205,20 +275,20 @@ const AnalyticsPage = () => {
         licenses: licensesInSubCounty.length
       };
     });
-  }, [captureRecords, farmers, licenses]);
+  }, [yearFilteredCaptureRecords, yearFilteredFarmers, yearFilteredLicenses]);
 
   const extensionSummaryRows = useMemo<NameValueRow[]>(() => {
     return MIGORI_SUBCOUNTIES.map((subCounty) => ({
       name: subCounty,
-      value: extensionEntries.filter((entry) => entry.subCounty === subCounty).length
-    })).filter((item) => selectedSubCounty === "All" || item.name === selectedSubCounty);
-  }, [extensionEntries, selectedSubCounty]);
+      value: yearFilteredExtensionEntries.filter((entry) => entry.subCounty === subCounty).length
+    })).filter((item) => selectedScopeSubCounty === "All" || item.name === selectedScopeSubCounty);
+  }, [selectedScopeSubCounty, yearFilteredExtensionEntries]);
 
-  const visibleSubCountyRows = selectedSubCounty === "All"
+  const visibleSubCountyRows = selectedScopeSubCounty === "All"
     ? subCountyRows
-    : subCountyRows.filter((row) => row.subCounty === selectedSubCounty);
-  const isSubCountyDrilldown = selectedSubCounty !== "All";
-  const activeSubCountyRow = subCountyRows.find((row) => row.subCounty === selectedSubCounty);
+    : subCountyRows.filter((row) => row.subCounty === selectedScopeSubCounty);
+  const isSubCountyDrilldown = selectedScopeSubCounty !== "All";
+  const activeSubCountyRow = subCountyRows.find((row) => row.subCounty === selectedScopeSubCounty);
   const drilldownRows = isSubCountyDrilldown ? visibleSubCountyRows : subCountyRows;
 
   const farmTypeRows = useMemo<NameValueRow[]>(() => {
@@ -361,6 +431,31 @@ const AnalyticsPage = () => {
   const operatingUnits = pondStats.activePonds + filteredFarmers.filter((farmer) => farmer.farmType !== "POND").length;
   const averageProductionPerFarmer = filteredFarmers.length > 0 ? totalProductionKg / filteredFarmers.length : 0;
   const validLicenseCount = filteredLicenses.filter((license) => license.status === "VALID").length;
+  const totalLicenseRevenue = filteredLicenses.reduce((total, license) => total + getLicenseRevenue(license), 0);
+  const revenueRows = useMemo<RevenueRow[]>(() => {
+    if (selectedScopeSubCounty !== "All" && MIGORI_SUBCOUNTIES.includes(selectedScopeSubCounty as MigoriSubCounty)) {
+      return WARDS_BY_SUBCOUNTY[selectedScopeSubCounty as MigoriSubCounty]
+        .filter((ward) => selectedWard === "All" || ward === selectedWard)
+        .map((ward) => {
+          const wardLicenses = filteredLicenses.filter((license) => getLicenseWard(license) === ward);
+          return {
+            name: ward,
+            revenue: wardLicenses.reduce((total, license) => total + getLicenseRevenue(license), 0),
+            licenses: wardLicenses.filter((license) => license.status === "VALID").length
+          };
+        })
+        .filter((row) => row.revenue > 0 || row.licenses > 0);
+    }
+
+    return MIGORI_SUBCOUNTIES.map((subCounty) => {
+      const subCountyLicenses = filteredLicenses.filter((license) => getLicenseSubCounty(license) === subCounty);
+      return {
+        name: subCounty,
+        revenue: subCountyLicenses.reduce((total, license) => total + getLicenseRevenue(license), 0),
+        licenses: subCountyLicenses.filter((license) => license.status === "VALID").length
+      };
+    }).filter((row) => row.revenue > 0 || row.licenses > 0);
+  }, [filteredLicenses, selectedScopeSubCounty, selectedWard]);
   const completedProjectCount = filteredProjects.filter((project) => project.status === "COMPLETED").length;
   const topSubCounty = [...subCountyRows].sort((a, b) => b.productionKg - a.productionKg)[0];
   const topSpecies = speciesRows[0];
@@ -377,11 +472,17 @@ const AnalyticsPage = () => {
     topSpecies
       ? `${topSpecies.species} leads species records with ${formatNumber(topSpecies.share, 1)}% share.`
       : "Species distribution will appear once production records include species data.",
-    `${formatNumber(validLicenseCount)} valid licenses are visible in the current scope.`
+    `${formatNumber(validLicenseCount)} valid licenses are visible in the current scope.`,
+    `${formatCurrency(totalLicenseRevenue)} in approved license revenue is visible in the current scope.`
   ];
 
   const exportRows = useMemo<AnalyticsExportRow[]>(() => {
     return [
+      {
+        section: "Scope",
+        metric: "Year",
+        value: selectedYear === ALL_YEARS ? "All Years" : selectedYear
+      },
       ...visibleSubCountyRows.map((row) => ({
         section: "Production by Sub-County",
         metric: row.subCounty,
@@ -392,6 +493,11 @@ const AnalyticsPage = () => {
         metric: row.name,
         value: Math.round(row.value)
       })),
+      ...captureMonthlyRows.map((row) => ({
+        section: "Capture Fisheries Monthly Trend",
+        metric: row.month,
+        value: `${formatKg(row.quantityKg)} - ${formatCurrency(row.value)} - ${formatNumber(row.records)} records`
+      })),
       ...speciesRows.map((row) => ({
         section: "Species Share",
         metric: row.species,
@@ -401,6 +507,11 @@ const AnalyticsPage = () => {
         section: "License Status",
         metric: row.name,
         value: row.value
+      })),
+      ...revenueRows.map((row) => ({
+        section: "License Revenue",
+        metric: row.name,
+        value: `${formatCurrency(row.revenue)} (${formatNumber(row.licenses)} valid licenses)`
       })),
       ...projectStatusRows.map((row) => ({
         section: "Project Status",
@@ -435,12 +546,15 @@ const AnalyticsPage = () => {
     ];
   }, [
     extensionSummaryRows,
+    captureMonthlyRows,
     farmTypeRows,
     farmerAgeBracketRows,
     farmerGenderRows,
     farmerStatusRows,
     licenseStatusRows,
     projectStatusRows,
+    revenueRows,
+    selectedYear,
     speciesRows,
     visibleSubCountyRows,
     wardRows
@@ -458,6 +572,18 @@ const AnalyticsPage = () => {
         <div className="flex flex-wrap items-center gap-2">
           <select
             className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={selectedYear}
+            onChange={(event) => setSelectedYear(event.target.value)}
+          >
+            <option value={ALL_YEARS}>All Years</option>
+            {availableYears.map((year) => (
+              <option key={year} value={String(year)}>
+                {year}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={valueDisplayMode}
             onChange={(event) => setValueDisplayMode(event.target.value as "FIGURE" | "PERCENT")}
           >
@@ -466,16 +592,34 @@ const AnalyticsPage = () => {
           </select>
           <select
             className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-            value={selectedSubCounty}
-            onChange={(event) => setSelectedSubCounty(event.target.value)}
+            value={selectedScopeSubCounty}
+            onChange={(event) => {
+              setSelectedSubCounty(event.target.value);
+              setSelectedWard("All");
+            }}
+            disabled={isOfficer}
           >
             <option value="All">All Sub-Counties</option>
-            {MIGORI_SUBCOUNTIES.map((subCounty) => (
+            {(isOfficer && officerSubCounty ? [officerSubCounty] : MIGORI_SUBCOUNTIES).map((subCounty) => (
               <option key={subCounty} value={subCounty}>
                 {subCounty}
               </option>
             ))}
           </select>
+          {selectedScopeSubCounty !== "All" ? (
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={selectedWard}
+              onChange={(event) => setSelectedWard(event.target.value)}
+            >
+              <option value="All">All Wards</option>
+              {availableAnalyticsWards.map((ward) => (
+                <option key={ward} value={ward}>
+                  {ward}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <ExportButton
             filename="analytics-distribution"
             sheetName="Analytics"
@@ -485,14 +629,61 @@ const AnalyticsPage = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-7">
         <StatCard label="Total Fish Production" value={formatKg(totalProductionKg)} helper={`${formatNumber(totalProductionKg / 1000, 2)} MT`} />
         <StatCard label="Capture Fisheries" value={formatKg(captureProductionKg)} helper="Nyatike capture data" />
         <StatCard label="Fish Farmers" value={formatNumber(filteredFarmers.length)} helper={`${formatNumber(pondStats.farms)} pond farms`} />
         <StatCard label="Operating Units" value={formatNumber(operatingUnits)} helper="Active ponds plus non-pond farms" />
         <StatCard label="Average Production/Farmer" value={formatKg(averageProductionPerFarmer)} helper={`${formatNumber(validLicenseCount)} valid licenses`} />
+        <StatCard label="License Revenue" value={formatCurrency(totalLicenseRevenue)} helper="Approved license fees" />
         <StatCard label="Extension Entries" value={formatNumber(filteredExtensionEntries.length)} helper="Services captured" />
       </div>
+
+      <ChartCard title="Capture Fisheries Monthly Trend">
+        {hasMonthlyCaptureTrendData(captureMonthlyRows) ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={captureMonthlyRows} margin={{ left: 0, right: 12, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="month" fontSize={11} />
+              <YAxis yAxisId="quantity" fontSize={11} tickFormatter={(value: number) => formatNumber(value / 1000, 1)} />
+              <YAxis
+                yAxisId="revenue"
+                orientation="right"
+                fontSize={11}
+                tickFormatter={(value: number) => formatNumber(value / 1000, 0)}
+              />
+              <Tooltip
+                formatter={(value, name) =>
+                  name === "Revenue" ? formatCurrency(Number(value ?? 0)) : formatTooltipKg(value)
+                }
+              />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Area
+                yAxisId="quantity"
+                type="monotone"
+                dataKey="quantityKg"
+                name="Quantity"
+                stroke="#2563eb"
+                fill="#bfdbfe"
+                strokeWidth={2}
+              />
+              <Area
+                yAxisId="revenue"
+                type="monotone"
+                dataKey="value"
+                name="Revenue"
+                stroke="#16a34a"
+                fill="#bbf7d0"
+                strokeWidth={2}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="grid h-full place-items-center text-sm text-muted-foreground">
+            No capture fisheries monthly data available in the selected scope.
+          </div>
+        )}
+      </ChartCard>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard title="Farmers by Gender">
@@ -559,18 +750,21 @@ const AnalyticsPage = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-3 p-4 pb-2">
           <div>
-            <CardTitle>{isSubCountyDrilldown ? `${selectedSubCounty} Drill Down` : "Sub-County Drill Down"}</CardTitle>
+            <CardTitle>{isSubCountyDrilldown ? `${selectedScopeSubCounty} Drill Down` : "Sub-County Drill Down"}</CardTitle>
             {isSubCountyDrilldown ? (
               <p className="mt-1 text-sm text-muted-foreground">
-                This view is scoped to {selectedSubCounty}; other sub-county analytics are hidden.
+                This view is scoped to {selectedScopeSubCounty}{selectedWard !== "All" ? ` / ${selectedWard}` : ""}; other sub-county analytics are hidden.
               </p>
             ) : null}
           </div>
-          {isSubCountyDrilldown ? (
+          {isSubCountyDrilldown && !isOfficer ? (
             <button
               type="button"
               className="rounded-md border px-3 py-1.5 text-sm hover:bg-secondary"
-              onClick={() => setSelectedSubCounty("All")}
+              onClick={() => {
+                setSelectedSubCounty("All");
+                setSelectedWard("All");
+              }}
             >
               County View
             </button>
@@ -578,7 +772,7 @@ const AnalyticsPage = () => {
         </CardHeader>
         <CardContent className="grid gap-3 p-4 pt-2 sm:grid-cols-2 xl:grid-cols-4">
           {drilldownRows.map((row) => {
-            const isActive = selectedSubCounty === row.subCounty;
+            const isActive = selectedScopeSubCounty === row.subCounty;
             return (
               <button
                 key={row.subCounty}
@@ -587,7 +781,12 @@ const AnalyticsPage = () => {
                 className={`rounded-lg border p-3 text-left transition hover:border-primary hover:bg-primary/5 ${
                   isActive ? "border-primary bg-primary/10" : "bg-secondary/20"
                 }`}
-                onClick={() => setSelectedSubCounty(row.subCounty)}
+                onClick={() => {
+                  if (!isOfficer) {
+                    setSelectedSubCounty(row.subCounty);
+                    setSelectedWard("All");
+                  }
+                }}
               >
                 <span className="text-sm font-semibold">{row.subCounty}</span>
                 <span className="mt-2 block text-lg font-semibold">{formatKg(row.productionKg)}</span>
@@ -602,7 +801,7 @@ const AnalyticsPage = () => {
 
       {isSubCountyDrilldown ? (
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-          <ChartCard title={`${selectedSubCounty} Ward Production`}>
+          <ChartCard title={`${selectedScopeSubCounty} Ward Production`}>
             {wardRows.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={wardRows} margin={{ left: 0, right: 8, bottom: 24 }}>
@@ -630,7 +829,7 @@ const AnalyticsPage = () => {
             )}
           </ChartCard>
 
-          <ChartCard title={`${selectedSubCounty} Farmer Status`}>
+          <ChartCard title={`${selectedScopeSubCounty} Farmer Status`}>
             {farmerStatusRows.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -777,6 +976,24 @@ const AnalyticsPage = () => {
             </ResponsiveContainer>
           ) : (
             <div className="grid h-full place-items-center text-sm text-muted-foreground">No license data available.</div>
+          )}
+        </ChartCard>
+
+        <ChartCard title={selectedScopeSubCounty === "All" ? "License Revenue by Sub-County" : "License Revenue by Ward"}>
+          {revenueRows.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={revenueRows} layout="vertical" margin={{ left: 28, right: 32 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" fontSize={11} tickFormatter={(value: number) => formatNumber(value / 1000, 0)} />
+                <YAxis type="category" dataKey="name" fontSize={11} width={112} />
+                <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
+                <Bar dataKey="revenue" name="Revenue" radius={[0, 6, 6, 0]} fill="#16a34a">
+                  <LabelList dataKey="revenue" position="right" formatter={(value) => formatCurrency(Number(value ?? 0))} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="grid h-full place-items-center text-sm text-muted-foreground">No approved license revenue available.</div>
           )}
         </ChartCard>
 

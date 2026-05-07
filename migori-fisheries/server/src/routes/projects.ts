@@ -338,7 +338,7 @@ router.get(
 
 router.post(
   "/upload-images",
-  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]),
+  authorize(["DIRECTOR", "ADMIN"]),
   auditLog("PROJECT_MEDIA", "UPLOAD"),
   asyncHandler(async (req, res) => {
     await runMulterOrThrow(req, res, imageUpload.array("images", MAX_PROJECT_IMAGES));
@@ -377,7 +377,7 @@ router.post(
 
 router.post(
   "/import",
-  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]),
+  authorize(["DIRECTOR", "ADMIN"]),
   auditLog("PROJECT", "BULK_IMPORT"),
   asyncHandler(async (req, res) => {
     await runMulterOrThrow(req, res, importUpload.single("file"));
@@ -442,11 +442,6 @@ router.post(
 
       if (!isProjectSubCounty(canonicalSubCounty)) {
         rowErrors.push(`Row ${rowNumber}: invalid sub-county \"${canonicalSubCounty}\".`);
-        return;
-      }
-
-      if (req.user?.role === "FISHERIES_OFFICER" && canonicalSubCounty !== req.user.subCounty) {
-        rowErrors.push(`Row ${rowNumber}: Fisheries Officer imports are restricted to ${req.user.subCounty}.`);
         return;
       }
 
@@ -520,9 +515,7 @@ router.post(
 router.post(
   "/",
   validate({ body: createProjectSchema }),
-  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
-    resolveSubCounty: (req) => (req.body as z.infer<typeof createProjectSchema>).subCounty
-  }),
+  authorize(["DIRECTOR", "ADMIN"]),
   auditLog("PROJECT"),
   asyncHandler(async (req, res) => {
     const payload = req.body as z.infer<typeof createProjectSchema>;
@@ -551,9 +544,7 @@ router.post(
 router.put(
   "/:id",
   validate({ params: idParamSchema, body: updateProjectSchema }),
-  authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
-    resolveSubCounty: (req) => (req.body as z.infer<typeof updateProjectSchema>).subCounty
-  }),
+  authorize(["DIRECTOR", "ADMIN"]),
   auditLog("PROJECT"),
   asyncHandler(async (req, res) => {
     const { id } = req.params as z.infer<typeof idParamSchema>;
@@ -561,10 +552,6 @@ router.put(
 
     if (!current) {
       throw new HttpError(404, "Project not found");
-    }
-
-    if (req.user?.role === "FISHERIES_OFFICER" && current.subCounty !== req.user.subCounty) {
-      throw new HttpError(403, "You can only update projects in your sub-county");
     }
 
     const payload = req.body as z.infer<typeof updateProjectSchema>;

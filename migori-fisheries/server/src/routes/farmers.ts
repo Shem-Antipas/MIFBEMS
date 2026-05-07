@@ -355,6 +355,7 @@ const createFarmerSchema = z.object({
       licenseNo: z.string().min(4),
       receiptNo: z.string().min(2),
       bmuName: z.string().min(2).optional(),
+      amountLicensed: z.number().min(0).optional(),
       type: z.enum(LicenseType),
       issuedDate: z.coerce.date(),
       expiryDate: z.coerce.date()
@@ -809,6 +810,7 @@ router.post(
             holderEmail: created.email,
             subCounty: created.subCounty,
             ward: created.ward,
+            amountLicensed: initialLicense.amountLicensed ?? 0,
             licensedById: req.user.id
           }
         });

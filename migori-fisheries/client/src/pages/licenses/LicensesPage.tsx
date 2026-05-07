@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { useAuthStore } from "@/store/authStore";
 import { licensesApi, type CreateLicensePayload } from "@/api/licenses";
 import { MIGORI_SUBCOUNTIES, WARDS_BY_SUBCOUNTY } from "@/lib/locationData";
+import { getLicenseRevenue } from "@/lib/licenseRevenue";
 import { getSearchEmptyLabel } from "@/lib/search";
 import type { ExcelColumn } from "@/lib/exportToExcel";
 import type { License } from "@/types";
@@ -43,6 +44,8 @@ const licenseTypeOptions: Array<{ value: License["type"]; label: string }> = [
   { value: "FISHERMAN", label: "Fisherman's License" },
   { value: "FISH_TRADER", label: "Fish Trader License" },
   { value: "BOAT_OWNER", label: "Boat Owner License" },
+  { value: "MOTORIZED_BOAT", label: "Motorized Boat" },
+  { value: "NON_MOTORIZED_BOAT", label: "Non Motorized Boat" },
   { value: "FISH_MOVEMENT_PERMIT", label: "Fish Movement Permit" },
   { value: "BOAT_LICENSE", label: "Boat License" },
   { value: "NEW_BOARD_REGISTRATION", label: "New Board Registration License" },
@@ -78,6 +81,7 @@ const licenseExportColumns = [
   { header: "Market", value: (license: License) => license.market ?? "" },
   { header: "Receipt No", value: (license: License) => license.receiptNo ?? "" },
   { header: "Amount Licensed", value: "amountLicensed" },
+  { header: "Revenue", value: (license: License) => getLicenseRevenue(license) },
   { header: "Licensed By", value: (license: License) => license.licensedByName ?? "" },
   { header: "Type", value: (license: License) => formatLicenseType(license.type) },
   { header: "Issued Date", value: (license: License) => new Date(license.issuedDate) },
@@ -355,7 +359,7 @@ const LicensesPage = () => {
                 <Input placeholder="Receipt number from payment" {...register("receiptNo", { required: true })} />
               </FormField>
               <FormField label="Amount Licensed (KES)">
-                <Input type="number" step="0.01" placeholder="0" {...register("amountLicensed", { valueAsNumber: true })} />
+                <Input type="number" min={0} step="0.01" placeholder="Amount on receipt" {...register("amountLicensed", { valueAsNumber: true })} />
               </FormField>
               <FormField label="Applicant Name">
                 <Input placeholder="Name of license holder" {...register("holderName", { required: true })} />
@@ -565,6 +569,7 @@ const LicensesPage = () => {
           "Market",
           "Receipt No",
           "Amount Licensed",
+          "Revenue",
           "Licensed By",
           "Type",
           "Issued Date",
@@ -584,6 +589,7 @@ const LicensesPage = () => {
           license.market ?? "-",
           license.receiptNo ?? "-",
           Number(license.amountLicensed ?? 0).toLocaleString(),
+          getLicenseRevenue(license).toLocaleString(),
           license.licensedByName ?? "-",
           formatLicenseType(license.type),
           new Date(license.issuedDate).toLocaleDateString(),
@@ -619,7 +625,7 @@ const LicensesPage = () => {
                   Edit
                 </Button>
               ) : null}
-              {license.status === "PENDING" ? (
+              {canApproveLicense && license.status === "PENDING" ? (
                 <>
                   <Button size="sm" type="button" onClick={() => void changeLicenseStatus(license.id, "VALID")}>
                     Approve
@@ -634,7 +640,7 @@ const LicensesPage = () => {
                   </Button>
                 </>
               ) : null}
-              {license.status !== "REVOKED" ? (
+              {canApproveLicense && license.status !== "REVOKED" ? (
                 <Button
                   size="sm"
                   type="button"

@@ -1,14 +1,16 @@
 import { prisma } from "../lib/prisma.js";
 export const getDashboardSummary = async (subCounty) => {
     const farmerWhere = subCounty ? { subCounty } : {};
+    const captureWhere = subCounty ? { subCounty } : {};
     const projectWhere = subCounty ? { subCounty } : {};
     const inspectionWhere = subCounty ? { subCounty } : {};
     const licenseScopeWhere = subCounty
         ? { OR: [{ subCounty }, { farmer: { subCounty } }] }
         : {};
-    const [totalFarmers, totalProduction, activeLicenses, expiredLicenses, totalProjects, ongoingProjects, inspectionsThisYear] = await Promise.all([
+    const [totalFarmers, totalProduction, totalCaptureProduction, activeLicenses, expiredLicenses, totalProjects, ongoingProjects, inspectionsThisYear] = await Promise.all([
         prisma.farmer.count({ where: farmerWhere }),
         prisma.farmer.aggregate({ where: farmerWhere, _sum: { productionKg: true } }),
+        prisma.captureFisheriesRecord.aggregate({ where: captureWhere, _sum: { catchKg: true } }),
         prisma.license.count({ where: { ...licenseScopeWhere, status: "VALID" } }),
         prisma.license.count({ where: { ...licenseScopeWhere, status: "EXPIRED" } }),
         prisma.blueEconomyProject.count({ where: projectWhere }),
@@ -28,7 +30,7 @@ export const getDashboardSummary = async (subCounty) => {
         expiredLicenses,
         totalProjects,
         ongoingProjects,
-        totalProductionKg: totalProduction._sum.productionKg ?? 0,
+        totalProductionKg: (totalProduction._sum.productionKg ?? 0) + (totalCaptureProduction._sum.catchKg ?? 0),
         inspectionsThisYear
     };
 };

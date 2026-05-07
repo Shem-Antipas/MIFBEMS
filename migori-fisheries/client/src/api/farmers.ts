@@ -5,11 +5,14 @@ type InitialLicensePayload = {
   licenseNo: string;
   receiptNo: string;
   bmuName?: string;
+  amountLicensed?: number;
   type:
     | "FISH_DEPOT"
     | "FISHERMAN"
     | "FISH_TRADER"
     | "BOAT_OWNER"
+    | "MOTORIZED_BOAT"
+    | "NON_MOTORIZED_BOAT"
     | "FISH_MOVEMENT_PERMIT"
     | "BOAT_LICENSE"
     | "NEW_BOARD_REGISTRATION"

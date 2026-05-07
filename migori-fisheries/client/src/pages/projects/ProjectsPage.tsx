@@ -182,7 +182,7 @@ const ProjectsPage = () => {
     return COUNTY_WIDE_COORDINATES;
   }, [availableWards, selectedSubCounty, selectedWard]);
 
-  const canCreateProject = user?.role === "DIRECTOR" || user?.role === "ADMIN" || user?.role === "FISHERIES_OFFICER";
+  const canCreateProject = user?.role === "DIRECTOR" || user?.role === "ADMIN";
   const canEditProject = canCreateProject;
   const canUpdateProjectStatus = user?.role === "DIRECTOR" || user?.role === "ADMIN";
   const canDeleteProject = user?.role === "DIRECTOR" || user?.role === "ADMIN";

@@ -232,6 +232,14 @@ const parseLicenseType = (value: unknown): LicenseType | undefined => {
     fishtraderslicense: LicenseType.FISH_TRADER,
     boatowner: LicenseType.BOAT_OWNER,
     boatownerlicense: LicenseType.BOAT_OWNER,
+    motorizedboat: LicenseType.MOTORIZED_BOAT,
+    motorisedboat: LicenseType.MOTORIZED_BOAT,
+    motorizedboatlicense: LicenseType.MOTORIZED_BOAT,
+    motorisedboatlicense: LicenseType.MOTORIZED_BOAT,
+    nonmotorizedboat: LicenseType.NON_MOTORIZED_BOAT,
+    nonmotorisedboat: LicenseType.NON_MOTORIZED_BOAT,
+    nonmotorizedboatlicense: LicenseType.NON_MOTORIZED_BOAT,
+    nonmotorisedboatlicense: LicenseType.NON_MOTORIZED_BOAT,
     fishmovementpermit: LicenseType.FISH_MOVEMENT_PERMIT,
     boatlicense: LicenseType.BOAT_LICENSE,
     boatlicensing: LicenseType.BOAT_LICENSE,
@@ -488,7 +496,6 @@ router.post(
       }
 
       const status = parseLicenseStatus(pickValue(row, ["status", "licensestatus"]), expiryDate);
-
       seenLicenseNumbers.add(licenseNo);
       seenReceiptNumbers.add(receiptNo);
 

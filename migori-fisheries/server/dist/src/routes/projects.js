@@ -252,7 +252,7 @@ router.get("/", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER", "DATA_ANALY
     });
     res.status(200).json({ data: projects });
 }));
-router.post("/upload-images", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]), auditLog("PROJECT_MEDIA", "UPLOAD"), asyncHandler(async (req, res) => {
+router.post("/upload-images", authorize(["DIRECTOR", "ADMIN"]), auditLog("PROJECT_MEDIA", "UPLOAD"), asyncHandler(async (req, res) => {
     await runMulterOrThrow(req, res, imageUpload.array("images", MAX_PROJECT_IMAGES));
     const files = Array.isArray(req.files) ? req.files : [];
     if (files.length === 0) {
@@ -277,7 +277,7 @@ router.post("/upload-images", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER
     }
     res.status(201).json({ data: { photos: uploadedUrls } });
 }));
-router.post("/import", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]), auditLog("PROJECT", "BULK_IMPORT"), asyncHandler(async (req, res) => {
+router.post("/import", authorize(["DIRECTOR", "ADMIN"]), auditLog("PROJECT", "BULK_IMPORT"), asyncHandler(async (req, res) => {
     await runMulterOrThrow(req, res, importUpload.single("file"));
     if (!req.file) {
         throw new HttpError(400, "Please attach a CSV/Excel file for import");
@@ -326,10 +326,6 @@ router.post("/import", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]), au
         }
         if (!isProjectSubCounty(canonicalSubCounty)) {
             rowErrors.push(`Row ${rowNumber}: invalid sub-county \"${canonicalSubCounty}\".`);
-            return;
-        }
-        if (req.user?.role === "FISHERIES_OFFICER" && canonicalSubCounty !== req.user.subCounty) {
-            rowErrors.push(`Row ${rowNumber}: Fisheries Officer imports are restricted to ${req.user.subCounty}.`);
             return;
         }
         const ward = normalizeWard(canonicalSubCounty, typeof wardRaw === "string" ? wardRaw : undefined);
@@ -387,9 +383,7 @@ router.post("/import", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]), au
         }
     });
 }));
-router.post("/", validate({ body: createProjectSchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
-    resolveSubCounty: (req) => req.body.subCounty
-}), auditLog("PROJECT"), asyncHandler(async (req, res) => {
+router.post("/", validate({ body: createProjectSchema }), authorize(["DIRECTOR", "ADMIN"]), auditLog("PROJECT"), asyncHandler(async (req, res) => {
     const payload = req.body;
     const ward = normalizeWard(payload.subCounty, payload.ward);
     if (payload.endDate && payload.endDate < payload.startDate) {
@@ -408,16 +402,11 @@ router.post("/", validate({ body: createProjectSchema }), authorize(["DIRECTOR",
     });
     res.status(201).json({ data: project });
 }));
-router.put("/:id", validate({ params: idParamSchema, body: updateProjectSchema }), authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"], {
-    resolveSubCounty: (req) => req.body.subCounty
-}), auditLog("PROJECT"), asyncHandler(async (req, res) => {
+router.put("/:id", validate({ params: idParamSchema, body: updateProjectSchema }), authorize(["DIRECTOR", "ADMIN"]), auditLog("PROJECT"), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const current = await prisma.blueEconomyProject.findUnique({ where: { id } });
     if (!current) {
         throw new HttpError(404, "Project not found");
-    }
-    if (req.user?.role === "FISHERIES_OFFICER" && current.subCounty !== req.user.subCounty) {
-        throw new HttpError(403, "You can only update projects in your sub-county");
     }
     const payload = req.body;
     if (payload.subCounty && !isProjectSubCounty(payload.subCounty)) {

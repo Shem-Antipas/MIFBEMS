@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -25,7 +27,14 @@ import { inspectionsApi } from "@/api/inspections";
 import { projectsApi } from "@/api/projects";
 import { useFarmers } from "@/hooks/useFarmers";
 import { useLicenses } from "@/hooks/useLicenses";
+import {
+  buildMonthlyCaptureTrend,
+  hasMonthlyCaptureTrendData,
+  type MonthlyCaptureTrendRow
+} from "@/lib/captureAnalytics";
+import { formatCurrency, getLicenseRevenue } from "@/lib/licenseRevenue";
 import { MIGORI_SUBCOUNTIES, WARDS_BY_SUBCOUNTY, type MigoriSubCounty } from "@/lib/locationData";
+import { ALL_YEARS, collectAvailableYears, matchesSelectedYear } from "@/lib/yearFilter";
 import type { ExcelColumn } from "@/lib/exportToExcel";
 import { getSearchEmptyLabel } from "@/lib/search";
 
@@ -102,6 +111,13 @@ const statusExportColumns = [
   { header: "Count", value: "count" }
 ] satisfies Array<ExcelColumn<StatusReportRow>>;
 
+const captureMonthlyExportColumns = [
+  { header: "Month", value: "month" },
+  { header: "Quantity (Kg)", value: "quantityKg" },
+  { header: "Value", value: "value" },
+  { header: "Records", value: "records" }
+] satisfies Array<ExcelColumn<MonthlyCaptureTrendRow>>;
+
 const chartColors = ["#0f766e", "#2563eb", "#7c3aed", "#ea580c", "#16a34a", "#ca8a04", "#be123c", "#0891b2"];
 const statusColors: Record<string, string> = {
   ACTIVE: "#16a34a",
@@ -158,6 +174,7 @@ const toStatusExportRows = (rows: NameValueRow[]): StatusReportRow[] =>
 const ReportsPage = () => {
   const [selectedSubCounty, setSelectedSubCounty] = useState<string>("All");
   const [selectedWard, setSelectedWard] = useState<string>("All");
+  const [selectedYear, setSelectedYear] = useState<string>(ALL_YEARS);
   const [valueDisplayMode, setValueDisplayMode] = useState<"FIGURE" | "PERCENT">("FIGURE");
   const [searchTerm, setSearchTerm] = useState("");
   const availableWards =
@@ -187,80 +204,117 @@ const ReportsPage = () => {
   const isLoading =
     isFarmersLoading || isLicensesLoading || isProjectsLoading || isInspectionsLoading || isCaptureLoading;
 
+  const availableYears = useMemo(
+    () =>
+      collectAvailableYears(
+        farmers.map((farmer) => farmer.createdAt),
+        licenses.map((license) => license.issuedDate),
+        captureRecords.map((record) => record.year ?? record.fishingDate),
+        projects.map((project) => project.startDate),
+        inspections.map((inspection) => inspection.date)
+      ),
+    [captureRecords, farmers, inspections, licenses, projects]
+  );
+
+  const yearFilteredFarmers = useMemo(
+    () => farmers.filter((farmer) => matchesSelectedYear(selectedYear, farmer.createdAt)),
+    [farmers, selectedYear]
+  );
+
+  const yearFilteredLicenses = useMemo(
+    () => licenses.filter((license) => matchesSelectedYear(selectedYear, license.issuedDate)),
+    [licenses, selectedYear]
+  );
+
+  const yearFilteredProjects = useMemo(
+    () => projects.filter((project) => matchesSelectedYear(selectedYear, project.startDate)),
+    [projects, selectedYear]
+  );
+
+  const yearFilteredInspections = useMemo(
+    () => inspections.filter((inspection) => matchesSelectedYear(selectedYear, inspection.date)),
+    [inspections, selectedYear]
+  );
+
+  const yearFilteredCaptureRecords = useMemo(
+    () => captureRecords.filter((record) => matchesSelectedYear(selectedYear, record.year ?? record.fishingDate)),
+    [captureRecords, selectedYear]
+  );
+
   const filteredFarmers = useMemo(
     () =>
-      farmers.filter((farmer) => {
+      yearFilteredFarmers.filter((farmer) => {
         const subCountyMatches = selectedSubCounty === "All" || farmer.subCounty === selectedSubCounty;
         const wardMatches = selectedWard === "All" || farmer.ward === selectedWard;
         return subCountyMatches && wardMatches;
       }),
-    [farmers, selectedSubCounty, selectedWard]
+    [selectedSubCounty, selectedWard, yearFilteredFarmers]
   );
 
   const filteredLicenses = useMemo(
     () =>
-      licenses.filter((license) => {
+      yearFilteredLicenses.filter((license) => {
         const subCounty = license.farmer?.subCounty ?? license.subCounty;
         const ward = license.farmer?.ward ?? license.ward;
         const subCountyMatches = selectedSubCounty === "All" || subCounty === selectedSubCounty;
         const wardMatches = selectedWard === "All" || ward === selectedWard;
         return subCountyMatches && wardMatches;
       }),
-    [licenses, selectedSubCounty, selectedWard]
+    [selectedSubCounty, selectedWard, yearFilteredLicenses]
   );
 
   const filteredProjects = useMemo(
     () =>
-      projects.filter((project) => {
+      yearFilteredProjects.filter((project) => {
         const subCountyMatches = selectedSubCounty === "All" || project.subCounty === selectedSubCounty;
         const wardMatches = selectedWard === "All" || project.ward === selectedWard || project.ward === "All wards";
         return subCountyMatches && wardMatches;
       }),
-    [projects, selectedSubCounty, selectedWard]
+    [selectedSubCounty, selectedWard, yearFilteredProjects]
   );
 
   const filteredInspections = useMemo(
     () =>
-      inspections.filter((inspection) => {
+      yearFilteredInspections.filter((inspection) => {
         const subCountyMatches = selectedSubCounty === "All" || inspection.subCounty === selectedSubCounty;
         const wardMatches = selectedWard === "All" || inspection.ward === selectedWard;
         return subCountyMatches && wardMatches;
       }),
-    [inspections, selectedSubCounty, selectedWard]
+    [selectedSubCounty, selectedWard, yearFilteredInspections]
   );
 
   const filteredCaptureRecords = useMemo(
     () =>
-      captureRecords.filter((record) => {
+      yearFilteredCaptureRecords.filter((record) => {
         const subCountyMatches = selectedSubCounty === "All" || record.subCounty === selectedSubCounty;
         const wardMatches = selectedWard === "All" || record.ward === selectedWard;
         return subCountyMatches && wardMatches;
       }),
-    [captureRecords, selectedSubCounty, selectedWard]
+    [selectedSubCounty, selectedWard, yearFilteredCaptureRecords]
   );
 
   const subCountyRows = useMemo<SubCountyReportRow[]>(() => {
     const visibleSubCounties = selectedSubCounty === "All" ? MIGORI_SUBCOUNTIES : [selectedSubCounty];
 
     return visibleSubCounties.map((subCounty) => {
-      const farmersInSubCounty = farmers.filter(
+      const farmersInSubCounty = yearFilteredFarmers.filter(
         (farmer) => farmer.subCounty === subCounty && (selectedWard === "All" || farmer.ward === selectedWard)
       );
-      const licensesInSubCounty = licenses.filter((license) => {
+      const licensesInSubCounty = yearFilteredLicenses.filter((license) => {
         const licenseSubCounty = license.farmer?.subCounty ?? license.subCounty;
         const licenseWard = license.farmer?.ward ?? license.ward;
         return licenseSubCounty === subCounty && (selectedWard === "All" || licenseWard === selectedWard);
       });
-      const projectsInSubCounty = projects.filter(
+      const projectsInSubCounty = yearFilteredProjects.filter(
         (project) =>
           project.subCounty === subCounty &&
           (selectedWard === "All" || project.ward === selectedWard || project.ward === "All wards")
       );
-      const inspectionsInSubCounty = inspections.filter(
+      const inspectionsInSubCounty = yearFilteredInspections.filter(
         (inspection) => inspection.subCounty === subCounty && (selectedWard === "All" || inspection.ward === selectedWard)
       );
       const farmProduction = farmersInSubCounty.reduce((total, farmer) => total + farmer.productionKg, 0);
-      const captureProduction = captureRecords
+      const captureProduction = yearFilteredCaptureRecords
         .filter((record) => record.subCounty === subCounty && (selectedWard === "All" || record.ward === selectedWard))
         .reduce((total, record) => total + record.catchKg, 0);
 
@@ -274,10 +328,18 @@ const ReportsPage = () => {
         inspections: inspectionsInSubCounty.length
       };
     });
-  }, [captureRecords, farmers, inspections, licenses, projects, selectedSubCounty, selectedWard]);
+  }, [
+    selectedSubCounty,
+    selectedWard,
+    yearFilteredCaptureRecords,
+    yearFilteredFarmers,
+    yearFilteredInspections,
+    yearFilteredLicenses,
+    yearFilteredProjects
+  ]);
 
   const demographicRows = useMemo<DemographicReportRow[]>(() => {
-    const buildRow = (scope: string, subCounty: string, ward: string, visibleFarmers: typeof farmers): DemographicReportRow => ({
+    const buildRow = (scope: string, subCounty: string, ward: string, visibleFarmers: typeof yearFilteredFarmers): DemographicReportRow => ({
       scope,
       subCounty,
       ward,
@@ -297,7 +359,7 @@ const ReportsPage = () => {
           "Sub-County",
           subCounty,
           "All wards",
-          farmers.filter((farmer) => farmer.subCounty === subCounty)
+          yearFilteredFarmers.filter((farmer) => farmer.subCounty === subCounty)
         )
       );
     }
@@ -308,7 +370,7 @@ const ReportsPage = () => {
           "Ward",
           selectedSubCounty,
           selectedWard,
-          farmers.filter((farmer) => farmer.subCounty === selectedSubCounty && farmer.ward === selectedWard)
+          yearFilteredFarmers.filter((farmer) => farmer.subCounty === selectedSubCounty && farmer.ward === selectedWard)
         )
       ];
     }
@@ -318,10 +380,10 @@ const ReportsPage = () => {
         "Ward",
         selectedSubCounty,
         ward,
-        farmers.filter((farmer) => farmer.subCounty === selectedSubCounty && farmer.ward === ward)
+        yearFilteredFarmers.filter((farmer) => farmer.subCounty === selectedSubCounty && farmer.ward === ward)
       )
     );
-  }, [availableWards, farmers, selectedSubCounty, selectedWard]);
+  }, [availableWards, selectedSubCounty, selectedWard, yearFilteredFarmers]);
 
   const filteredSubCountyRows = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -364,6 +426,8 @@ const ReportsPage = () => {
   const expiredLicenses = filteredLicenses.filter((license) => license.status === "EXPIRED").length;
   const ongoingProjects = filteredProjects.filter((project) => project.status === "ONGOING").length;
   const captureProductionKg = filteredCaptureRecords.reduce((total, record) => total + record.catchKg, 0);
+  const totalLicenseRevenue = filteredLicenses.reduce((total, license) => total + getLicenseRevenue(license), 0);
+  const captureMonthlyRows = useMemo(() => buildMonthlyCaptureTrend(filteredCaptureRecords), [filteredCaptureRecords]);
 
   const licenseRows = useMemo(() => countBy(filteredLicenses, (license) => license.status), [filteredLicenses]);
   const farmerStatusRows = useMemo(() => countBy(filteredFarmers, (farmer) => farmer.status), [filteredFarmers]);
@@ -398,10 +462,12 @@ const ReportsPage = () => {
   }, [licenseRows, searchTerm]);
 
   const summaryRows = useMemo<SummaryReportRow[]>(() => [
+    { metric: "Year Scope", value: selectedYear === ALL_YEARS ? "All Years" : selectedYear },
     { metric: "Sub-County Scope", value: selectedSubCounty },
     { metric: "Ward Scope", value: selectedWard },
     { metric: "Total Farmers", value: filteredFarmers.length },
     { metric: "Active Licenses", value: activeLicenses },
+    { metric: "Total License Revenue", value: formatCurrency(totalLicenseRevenue) },
     { metric: "Expired Licenses", value: expiredLicenses },
     { metric: "Total Projects", value: filteredProjects.length },
     { metric: "Ongoing Projects", value: ongoingProjects },
@@ -418,6 +484,8 @@ const ReportsPage = () => {
     ongoingProjects,
     selectedSubCounty,
     selectedWard,
+    selectedYear,
+    totalLicenseRevenue,
     totalProductionKg
   ]);
 
@@ -448,6 +516,18 @@ const ReportsPage = () => {
             placeholder="Search report tables..."
             className="w-56"
           />
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+            value={selectedYear}
+            onChange={(event) => setSelectedYear(event.target.value)}
+          >
+            <option value={ALL_YEARS}>All Years</option>
+            {availableYears.map((year) => (
+              <option key={year} value={String(year)}>
+                {year}
+              </option>
+            ))}
+          </select>
           <select
             className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
             value={valueDisplayMode}
@@ -511,6 +591,13 @@ const ReportsPage = () => {
             label="Gender & Age"
           />
           <ExportButton
+            filename="report-capture-fisheries-monthly-trend"
+            sheetName="Capture Trend"
+            columns={captureMonthlyExportColumns}
+            rows={captureMonthlyRows}
+            label="Capture Trend"
+          />
+          <ExportButton
             filename="report-gender"
             sheetName="Gender"
             columns={statusExportColumns}
@@ -555,10 +642,11 @@ const ReportsPage = () => {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <StatCard label="Total Farmers" value={filteredFarmers.length} />
         <StatCard label="Total Production" value={formatKg(totalProductionKg)} helper={`${formatNumber(totalProductionKg / 1000, 2)} MT`} />
         <StatCard label="Active Licenses" value={activeLicenses} />
+        <StatCard label="License Revenue" value={formatCurrency(totalLicenseRevenue)} helper="Current visible scope" />
         <StatCard label="Projects" value={filteredProjects.length} helper={`${formatNumber(ongoingProjects)} ongoing`} />
         <StatCard label="Extension Services" value={filteredInspections.length} helper="Current visible scope" />
       </div>
@@ -624,6 +712,52 @@ const ReportsPage = () => {
           )}
         </ChartCard>
       </div>
+
+      <ChartCard title="Capture Fisheries Monthly Trend">
+        {hasMonthlyCaptureTrendData(captureMonthlyRows) ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={captureMonthlyRows} margin={{ left: 0, right: 12, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="month" fontSize={11} />
+              <YAxis yAxisId="quantity" fontSize={11} tickFormatter={(value: number) => formatNumber(value / 1000, 1)} />
+              <YAxis
+                yAxisId="revenue"
+                orientation="right"
+                fontSize={11}
+                tickFormatter={(value: number) => formatNumber(value / 1000, 0)}
+              />
+              <Tooltip
+                formatter={(value, name) =>
+                  name === "Revenue" ? `KES ${Number(value ?? 0).toLocaleString()}` : formatTooltipKg(value)
+                }
+              />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Area
+                yAxisId="quantity"
+                type="monotone"
+                dataKey="quantityKg"
+                name="Quantity"
+                stroke="#2563eb"
+                fill="#bfdbfe"
+                strokeWidth={2}
+              />
+              <Area
+                yAxisId="revenue"
+                type="monotone"
+                dataKey="value"
+                name="Revenue"
+                stroke="#16a34a"
+                fill="#bbf7d0"
+                strokeWidth={2}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="grid h-full place-items-center text-sm text-muted-foreground">
+            No capture fisheries monthly data available in the selected scope.
+          </div>
+        )}
+      </ChartCard>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <ChartCard title="Farmers by Gender">

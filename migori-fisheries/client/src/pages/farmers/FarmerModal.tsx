@@ -33,11 +33,14 @@ const farmerSchema = z.object({
   licenseNo: z.string().optional(),
   receiptNo: z.string().optional(),
   bmuName: z.string().optional(),
+  licenseAmountLicensed: z.number().min(0).optional(),
   licenseType: z.enum([
     "FISH_DEPOT",
     "FISHERMAN",
     "FISH_TRADER",
     "BOAT_OWNER",
+    "MOTORIZED_BOAT",
+    "NON_MOTORIZED_BOAT",
     "FISH_MOVEMENT_PERMIT",
     "BOAT_LICENSE",
     "NEW_BOARD_REGISTRATION",
@@ -98,7 +101,7 @@ const farmerSchema = z.object({
     }
   }
 
-  if (value.activePonds + value.inactivePonds > value.numberOfPonds) {
+  if (value.farmType === "POND" && value.activePonds + value.inactivePonds > value.numberOfPonds) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["numberOfPonds"],
@@ -185,6 +188,7 @@ const FarmerModal = ({
 
   const selectedSubCounty = useWatch({ control, name: "subCounty", defaultValue: "Suna East" });
   const selectedWard = useWatch({ control, name: "ward", defaultValue: "God Jope" });
+  const selectedFarmType = useWatch({ control, name: "farmType", defaultValue: "POND" });
   const issueLicense = useWatch({ control, name: "issueLicense", defaultValue: false });
   const effectiveSubCounty = enforcedSubCounty ?? selectedSubCounty;
   const availableWards = WARDS_BY_SUBCOUNTY[effectiveSubCounty];
@@ -255,9 +259,9 @@ const FarmerModal = ({
       status: values.status,
       species: values.species.split(",").map((item) => item.trim()).filter(Boolean),
       productionKg: values.productionKg,
-      numberOfPonds: values.numberOfPonds,
-      activePonds: values.activePonds,
-      inactivePonds: values.inactivePonds,
+      numberOfPonds: values.farmType === "POND" ? values.numberOfPonds : 0,
+      activePonds: values.farmType === "POND" ? values.activePonds : 0,
+      inactivePonds: values.farmType === "POND" ? values.inactivePonds : 0,
       latitude: selectedLocation.lat,
       longitude: selectedLocation.lng,
       initialLicense: values.issueLicense
@@ -265,6 +269,7 @@ const FarmerModal = ({
             licenseNo: values.licenseNo!.trim(),
             receiptNo: values.receiptNo!.trim(),
             bmuName: values.bmuName?.trim() || undefined,
+            amountLicensed: values.licenseAmountLicensed ?? 0,
             type: values.licenseType!,
             issuedDate: values.licenseIssuedDate!,
             expiryDate: values.licenseExpiryDate!
@@ -392,6 +397,7 @@ const FarmerModal = ({
             <Input type="number" step="0.1" {...register("productionKg", { valueAsNumber: true })} />
           </div>
 
+            {selectedFarmType === "POND" ? (
             <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 md:col-span-2 md:grid-cols-3">
               <div className="md:col-span-3">
                 <p className="text-sm font-medium">Production Unit Details</p>
@@ -413,6 +419,7 @@ const FarmerModal = ({
                 <Input type="number" min="0" step="1" {...register("inactivePonds", { valueAsNumber: true })} />
               </div>
             </div>
+            ) : null}
 
           {canRecordLicense && !initialFarmer ? (
           <div className="md:col-span-2 rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
@@ -441,6 +448,11 @@ const FarmerModal = ({
                 </div>
 
                 <div>
+                  <label className="mb-1 block text-sm font-medium">Amount Licensed (KES)</label>
+                  <Input type="number" min="0" step="0.01" {...register("licenseAmountLicensed", { valueAsNumber: true })} />
+                </div>
+
+                <div>
                   <label className="mb-1 block text-sm font-medium">License Type</label>
                   <select className="w-full rounded-lg border px-3 py-2 text-sm" {...register("licenseType")}>
                     <option value="">Select type</option>
@@ -448,6 +460,8 @@ const FarmerModal = ({
                     <option value="FISHERMAN">Fisherman's License</option>
                     <option value="FISH_TRADER">Fish Trader License</option>
                     <option value="BOAT_OWNER">Boat Owner License</option>
+                    <option value="MOTORIZED_BOAT">Motorized Boat</option>
+                    <option value="NON_MOTORIZED_BOAT">Non Motorized Boat</option>
                     <option value="FISH_MOVEMENT_PERMIT">Fish Movement Permit</option>
                     <option value="BOAT_LICENSE">Boat License</option>
                     <option value="NEW_BOARD_REGISTRATION">New Board Registration License</option>

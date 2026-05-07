@@ -20,11 +20,17 @@ router.get("/summary", validate({ query: summaryQuerySchema }), authorize(["DIRE
         throw new HttpError(403, "Your account is not assigned to a sub-county");
     }
     const subCounty = req.user.role === "FISHERIES_OFFICER" ? req.user.subCounty : query.subCounty;
-    const [summary, productionBySubCounty, licensesByStatus] = await Promise.all([
+    const [summary, farmProductionBySubCounty, captureProductionBySubCounty, licensesByStatus] = await Promise.all([
         getDashboardSummary(subCounty),
         prisma.farmer.groupBy({
             by: ["subCounty"],
             _sum: { productionKg: true },
+            where: subCounty ? { subCounty } : {},
+            orderBy: { subCounty: "asc" }
+        }),
+        prisma.captureFisheriesRecord.groupBy({
+            by: ["subCounty"],
+            _sum: { catchKg: true },
             where: subCounty ? { subCounty } : {},
             orderBy: { subCounty: "asc" }
         }),
@@ -34,6 +40,19 @@ router.get("/summary", validate({ query: summaryQuerySchema }), authorize(["DIRE
             where: subCounty ? { OR: [{ subCounty }, { farmer: { subCounty } }] } : {}
         })
     ]);
+    const productionTotals = new Map();
+    farmProductionBySubCounty.forEach((row) => {
+        productionTotals.set(row.subCounty, row._sum.productionKg ?? 0);
+    });
+    captureProductionBySubCounty.forEach((row) => {
+        productionTotals.set(row.subCounty, (productionTotals.get(row.subCounty) ?? 0) + (row._sum.catchKg ?? 0));
+    });
+    const productionBySubCounty = Array.from(productionTotals.entries())
+        .map(([rowSubCounty, productionKg]) => ({
+        subCounty: rowSubCounty,
+        _sum: { productionKg }
+    }))
+        .sort((a, b) => a.subCounty.localeCompare(b.subCounty));
     res.status(200).json({
         data: {
             summary,

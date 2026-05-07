@@ -64,6 +64,8 @@ export interface License {
     | "FISHERMAN"
     | "FISH_TRADER"
     | "BOAT_OWNER"
+    | "MOTORIZED_BOAT"
+    | "NON_MOTORIZED_BOAT"
     | "FISH_MOVEMENT_PERMIT"
     | "BOAT_LICENSE"
     | "NEW_BOARD_REGISTRATION"
@@ -153,17 +155,34 @@ export interface CageProductionRecord {
   updatedAt: string;
 }
 
+export interface ExtensionPhoto {
+  name: string;
+  type: "image/png" | "image/jpeg" | "image/webp";
+  size: number;
+  dataUrl: string;
+}
+
 export interface Inspection {
   id: string;
+  entryCode: string;
   farmName: string;
   extensionOfficerName?: string | null;
   extensionOfficerPhone?: string | null;
   subCounty: string;
   ward?: string | null;
+  farmerNumber?: string | null;
   farmerPhoneNumber?: string | null;
+  gender: "MALE" | "FEMALE";
+  ageBracket: "YOUTH" | "ADULT";
   extensionTopics?: string[];
   feedback?: string | null;
   challenges?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  photos: ExtensionPhoto[];
+  approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
+  approvedById?: string | null;
+  approvedAt?: string | null;
   officerId: string;
   date: string;
   result: "PASS" | "FAIL" | "PENDING";
