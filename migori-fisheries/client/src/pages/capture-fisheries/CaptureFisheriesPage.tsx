@@ -90,6 +90,23 @@ const FormField = ({ label, children, className = "" }: { label: string; childre
   </label>
 );
 
+const getValidNyatikeBeachForWard = (ward: string, beachName?: string | null): string => {
+  const wardBeaches = NYATIKE_BEACHES.filter((beach) => beach.ward === ward);
+  const matchingBeach = wardBeaches.find((beach) => beach.name === beachName);
+  return matchingBeach?.name ?? wardBeaches[0]?.name ?? "";
+};
+
+const getApiErrorMessage = (error: unknown, fallback: string): string => {
+  const response = (error as AxiosError<{ error?: string; issues?: Array<{ path?: string; message?: string }> }>).response?.data;
+  const issueMessage = response?.issues?.[0];
+
+  if (issueMessage?.message) {
+    return issueMessage.path ? `${issueMessage.path}: ${issueMessage.message}` : issueMessage.message;
+  }
+
+  return response?.error ?? fallback;
+};
+
 const captureFisheriesExportColumns = [
   { header: "Unique Number", value: "captureCode" },
   { header: "Name", value: "fisherName" },
@@ -362,11 +379,11 @@ const CaptureFisheriesPage = () => {
 
   const mapFormToPayload = (values: CaptureForm): CreateCaptureFisheriesPayload => ({
     extensionOfficerName: values.extensionOfficerName.trim(),
-    extensionOfficerPhone: values.extensionOfficerPhone.trim(),
+    extensionOfficerPhone: values.extensionOfficerPhone.trim() || undefined,
     fisherName: values.fisherName.trim(),
     farmerNumber: values.farmerNumber.trim() || undefined,
     idNumber: values.idNumber.trim() || undefined,
-    phoneNumber: values.phoneNumber.trim() || undefined,
+    phoneNumber: values.phoneNumber.trim(),
     subCounty: values.subCounty,
     ward: values.ward,
     gender: values.gender,
@@ -483,10 +500,7 @@ const CaptureFisheriesPage = () => {
       }
       resetForm();
     } catch (error) {
-      const message =
-        (error as AxiosError<{ error?: string }>).response?.data?.error ??
-        "Failed to save capture entry.";
-      toast.error(message);
+      toast.error(getApiErrorMessage(error, "Failed to save capture entry."));
     }
   };
 
@@ -695,6 +709,7 @@ const CaptureFisheriesPage = () => {
                     setValue("idNumber", record.idNumber ?? "");
                     setValue("phoneNumber", record.phoneNumber ?? "");
                     setValue("subCounty", record.subCounty as (typeof MIGORI_SUBCOUNTIES)[number]);
+                    const validLandingSite = getValidNyatikeBeachForWard(record.ward, record.landingSite);
                     setValue("ward", record.ward);
                     setValue("gender", record.gender);
                     setValue("ageBracket", record.ageBracket);
@@ -702,7 +717,7 @@ const CaptureFisheriesPage = () => {
                     setValue("latitude", record.latitude ?? undefined);
                     setValue("longitude", record.longitude ?? undefined);
                     setValue("bmuName", record.bmuName ?? "");
-                    setValue("landingSite", record.landingSite ?? "");
+                    setValue("landingSite", validLandingSite);
                     setValue("species", record.species);
                     setValue("catchKg", record.catchKg);
                     setValue("value", record.value);

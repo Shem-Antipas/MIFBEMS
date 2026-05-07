@@ -4,11 +4,9 @@ import type { CageProductionRecord, CaptureFisheriesRecord } from "@/types";
 export type CreateCaptureFisheriesPayload = Pick<
   CaptureFisheriesRecord,
   | "extensionOfficerName"
-  | "extensionOfficerPhone"
   | "fisherName"
   | "farmerNumber"
   | "idNumber"
-  | "phoneNumber"
   | "subCounty"
   | "ward"
   | "gender"
@@ -25,7 +23,10 @@ export type CreateCaptureFisheriesPayload = Pick<
   | "year"
   | "effortHours"
   | "fishingDate"
->;
+> & {
+  extensionOfficerPhone?: string;
+  phoneNumber: string;
+};
 
 export type CreateCageProductionPayload = Pick<
   CageProductionRecord,

@@ -5,7 +5,7 @@ import { Router } from "express";
 import * as XLSX from "xlsx";
 import { z } from "zod";
 import { asyncHandler, HttpError } from "../lib/http.js";
-import { MIGORI_SUBCOUNTIES, WARDS_BY_SUBCOUNTY, isValidWardForSubCounty } from "../lib/locationData.js";
+import { MIGORI_SUBCOUNTIES, isValidWardForSubCounty, toCanonicalWardForSubCounty } from "../lib/locationData.js";
 import { prisma } from "../lib/prisma.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
@@ -63,6 +63,15 @@ const normalizeRow = (row) => {
     }
     return normalized;
 };
+const isBlankSpreadsheetRow = (row) => Object.values(row).every((value) => {
+    if (value === null || value === undefined) {
+        return true;
+    }
+    if (typeof value === "string") {
+        return value.replace(/\u00a0/g, " ").trim() === "";
+    }
+    return false;
+});
 const pickValue = (row, keys) => {
     for (const key of keys) {
         const value = row[key];
@@ -89,7 +98,7 @@ const parseText = (value) => {
     if (typeof value !== "string") {
         return undefined;
     }
-    const trimmed = value.trim();
+    const trimmed = value.replace(/\u00a0/g, " ").trim();
     return trimmed ? trimmed : undefined;
 };
 const parseNumber = (value) => {
@@ -146,9 +155,8 @@ const toCanonicalSubCounty = (value) => {
     return match ?? toTitleCase(value);
 };
 const toCanonicalWard = (subCounty, value) => {
-    const normalized = value.trim().toLowerCase();
-    const wards = WARDS_BY_SUBCOUNTY[subCounty] ?? [];
-    return wards.find((ward) => ward.toLowerCase() === normalized) ?? toTitleCase(value);
+    const canonicalWard = toCanonicalWardForSubCounty(subCounty, value);
+    return canonicalWard === value.trim() ? toTitleCase(value) : canonicalWard;
 };
 const parseFarmType = (value) => {
     const text = parseText(value)?.toLowerCase().replace(/[^a-z]/g, "");
@@ -164,6 +172,10 @@ const parseFarmType = (value) => {
         ponds: "POND",
         fishpond: "POND",
         fishponds: "POND",
+        aquaculturepond: "POND",
+        aquacultureponds: "POND",
+        productionpond: "POND",
+        productionponds: "POND",
         tank: "TANK",
         tanks: "TANK"
     };
@@ -219,6 +231,15 @@ const parseSpecies = (value) => {
         .filter((species) => species.length >= 2);
 };
 const formatImportError = (rowNumber, message) => `Row ${rowNumber}: ${message}`;
+const IMPORT_CREATE_BATCH_SIZE = 100;
+const IMPORT_UPDATE_BATCH_SIZE = 25;
+const chunkItems = (items, size) => {
+    const chunks = [];
+    for (let index = 0; index < items.length; index += size) {
+        chunks.push(items.slice(index, index + size));
+    }
+    return chunks;
+};
 const createFarmerSchema = z.object({
     name: z.string().min(2),
     idNumber: z.string().min(4).optional(),
@@ -333,10 +354,16 @@ router.post("/import", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]), au
         throw new HttpError(400, "The file is empty. Add farmer rows then try again.");
     }
     const rowErrors = [];
-    let createdCount = 0;
-    let updatedCount = 0;
+    const parsedRows = [];
+    const seenFarmerCodes = new Set();
+    const seenIdNumbers = new Set();
+    let processedCount = 0;
     for (const [index, rawRow] of rows.entries()) {
         const rowNumber = index + 2;
+        if (isBlankSpreadsheetRow(rawRow)) {
+            continue;
+        }
+        processedCount += 1;
         const row = normalizeRow(rawRow);
         const farmerCode = parseText(pickValue(row, ["farmerid", "farmerno", "farmernumber", "farmercode"]));
         const name = parseText(pickValue(row, ["name", "farmername"]));
@@ -350,7 +377,7 @@ router.post("/import", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]), au
         const farmType = parseFarmType(pickValue(row, ["productionunit", "farmtype", "unittype"]));
         const species = parseSpecies(pickValue(row, ["species", "fishspecies"]));
         const productionKg = parseNumber(pickValue(row, ["productionkg", "productionkgs", "production"])) ?? 0;
-        const numberOfPonds = parseInteger(pickValue(row, ["numberofproductionunits", "productionunits", "numberofponds", "numberofunits", "units"])) ?? 0;
+        let numberOfPonds = parseInteger(pickValue(row, ["numberofproductionunits", "productionunits", "numberofponds", "numberofunits", "units"])) ?? 0;
         const activePonds = parseInteger(pickValue(row, ["numberactive", "active", "activeponds", "activeunits"])) ?? 0;
         const inactivePonds = parseInteger(pickValue(row, ["numberinactive", "inactive", "inactiveponds", "inactiveunits"])) ?? 0;
         const status = parseFarmerStatus(pickValue(row, ["status", "farmerstatus"]));
@@ -359,6 +386,14 @@ router.post("/import", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]), au
         const createdAt = parseDateValue(pickValue(row, ["createdat", "createddate", "datecreated"]));
         if (!name || !subCountyRaw || !wardRaw || !farmType || species.length === 0) {
             rowErrors.push(formatImportError(rowNumber, "required fields missing (Name, Sub-County, Ward, Production Unit, Species)."));
+            continue;
+        }
+        if (farmerCode && seenFarmerCodes.has(farmerCode)) {
+            rowErrors.push(formatImportError(rowNumber, `duplicate Farmer ID "${farmerCode}" in this upload.`));
+            continue;
+        }
+        if (idNumber && seenIdNumbers.has(idNumber)) {
+            rowErrors.push(formatImportError(rowNumber, `duplicate ID No. "${idNumber}" in this upload.`));
             continue;
         }
         const subCounty = toCanonicalSubCounty(subCountyRaw);
@@ -375,6 +410,9 @@ router.post("/import", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]), au
             rowErrors.push(formatImportError(rowNumber, `ward "${ward}" does not belong to ${subCounty}.`));
             continue;
         }
+        if (numberOfPonds === 0 && activePonds + inactivePonds > 0) {
+            numberOfPonds = activePonds + inactivePonds;
+        }
         if (activePonds + inactivePonds > numberOfPonds) {
             rowErrors.push(formatImportError(rowNumber, "Number Active and Number Inactive cannot exceed total Production Units."));
             continue;
@@ -387,86 +425,145 @@ router.post("/import", authorize(["DIRECTOR", "ADMIN", "FISHERIES_OFFICER"]), au
             rowErrors.push(formatImportError(rowNumber, "Longitude must be between -180 and 180."));
             continue;
         }
-        const duplicateChecks = [];
         if (farmerCode)
-            duplicateChecks.push({ farmerCode });
+            seenFarmerCodes.add(farmerCode);
         if (idNumber)
-            duplicateChecks.push({ idNumber });
-        if (phoneNumber)
-            duplicateChecks.push({ phoneNumber });
-        if (email)
-            duplicateChecks.push({ email });
-        try {
-            const existingFarmer = duplicateChecks.length > 0
-                ? await prisma.farmer.findFirst({
-                    where: { OR: duplicateChecks }
-                })
-                : null;
-            if (existingFarmer) {
-                await prisma.farmer.update({
-                    where: { id: existingFarmer.id },
-                    data: {
-                        name,
-                        idNumber,
-                        phoneNumber,
-                        email,
-                        gender,
-                        ageBracket,
-                        subCounty,
-                        ward,
-                        farmType,
-                        species,
-                        status,
-                        productionKg,
-                        numberOfPonds,
-                        activePonds,
-                        inactivePonds,
-                        latitude,
-                        longitude
-                    }
-                });
-                updatedCount += 1;
-                continue;
+            seenIdNumbers.add(idNumber);
+        const createData = {
+            ...(farmerCode ? { farmerCode } : {}),
+            name,
+            idNumber,
+            phoneNumber,
+            email,
+            gender,
+            ageBracket,
+            subCounty,
+            ward,
+            farmType,
+            species,
+            status,
+            productionKg,
+            numberOfPonds,
+            activePonds,
+            inactivePonds,
+            latitude,
+            longitude,
+            ...(createdAt ? { createdAt } : {}),
+            registeredById: req.user.id
+        };
+        parsedRows.push({
+            rowNumber,
+            farmerCode,
+            idNumber,
+            createData,
+            updateData: {
+                name,
+                idNumber,
+                phoneNumber,
+                email,
+                gender,
+                ageBracket,
+                subCounty,
+                ward,
+                farmType,
+                species,
+                status,
+                productionKg,
+                numberOfPonds,
+                activePonds,
+                inactivePonds,
+                latitude,
+                longitude
             }
-            await prisma.farmer.create({
-                data: {
-                    ...(farmerCode ? { farmerCode } : {}),
-                    name,
-                    idNumber,
-                    phoneNumber,
-                    email,
-                    gender,
-                    ageBracket,
-                    subCounty,
-                    ward,
-                    farmType,
-                    species,
-                    status,
-                    productionKg,
-                    numberOfPonds,
-                    activePonds,
-                    inactivePonds,
-                    latitude,
-                    longitude,
-                    ...(createdAt ? { createdAt } : {}),
-                    registeredById: req.user.id
-                }
+        });
+    }
+    const farmerCodes = parsedRows
+        .map((row) => row.farmerCode)
+        .filter((value) => Boolean(value));
+    const idNumbers = parsedRows
+        .map((row) => row.idNumber)
+        .filter((value) => Boolean(value));
+    const existingFarmers = farmerCodes.length > 0 || idNumbers.length > 0
+        ? await prisma.farmer.findMany({
+            where: {
+                OR: [
+                    ...(farmerCodes.length > 0 ? [{ farmerCode: { in: farmerCodes } }] : []),
+                    ...(idNumbers.length > 0 ? [{ idNumber: { in: idNumbers } }] : [])
+                ]
+            },
+            select: { id: true, farmerCode: true, idNumber: true }
+        })
+        : [];
+    const existingByFarmerCode = new Map(existingFarmers
+        .filter((farmer) => farmer.farmerCode)
+        .map((farmer) => [farmer.farmerCode, farmer]));
+    const existingByIdNumber = new Map(existingFarmers
+        .filter((farmer) => farmer.idNumber)
+        .map((farmer) => [farmer.idNumber, farmer]));
+    const createRows = [];
+    const updateRows = [];
+    for (const row of parsedRows) {
+        const existingFarmer = (row.farmerCode ? existingByFarmerCode.get(row.farmerCode) : undefined) ??
+            (row.idNumber ? existingByIdNumber.get(row.idNumber) : undefined);
+        if (existingFarmer) {
+            updateRows.push({ ...row, existingId: existingFarmer.id });
+        }
+        else {
+            createRows.push(row);
+        }
+    }
+    let createdCount = 0;
+    let updatedCount = 0;
+    for (const chunk of chunkItems(createRows, IMPORT_CREATE_BATCH_SIZE)) {
+        try {
+            const result = await prisma.farmer.createMany({
+                data: chunk.map((row) => row.createData),
+                skipDuplicates: true
             });
-            createdCount += 1;
+            createdCount += result.count;
         }
-        catch (error) {
-            const message = error instanceof Error ? error.message : "Failed to import row";
-            rowErrors.push(formatImportError(rowNumber, message));
+        catch {
+            for (const row of chunk) {
+                try {
+                    await prisma.farmer.create({ data: row.createData });
+                    createdCount += 1;
+                }
+                catch (error) {
+                    const message = error instanceof Error ? error.message : "Failed to import row";
+                    rowErrors.push(formatImportError(row.rowNumber, message));
+                }
+            }
         }
     }
-    if (createdCount + updatedCount === 0) {
-        throw new HttpError(400, rowErrors[0] ?? "No valid rows were found in the import file.");
+    for (const chunk of chunkItems(updateRows, IMPORT_UPDATE_BATCH_SIZE)) {
+        try {
+            await prisma.$transaction(chunk.map((row) => prisma.farmer.update({
+                where: { id: row.existingId },
+                data: row.updateData
+            })));
+            updatedCount += chunk.length;
+        }
+        catch {
+            for (const row of chunk) {
+                try {
+                    await prisma.farmer.update({
+                        where: { id: row.existingId },
+                        data: row.updateData
+                    });
+                    updatedCount += 1;
+                }
+                catch (error) {
+                    const message = error instanceof Error ? error.message : "Failed to import row";
+                    rowErrors.push(formatImportError(row.rowNumber, message));
+                }
+            }
+        }
     }
-    res.status(201).json({
+    res.status(createdCount + updatedCount > 0 ? 201 : 200).json({
         data: {
             createdCount,
             updatedCount,
-            skippedCount: rows.length - createdCount - updatedCount,
+            skippedCount: processedCount - createdCount - updatedCount,
             errors: rowErrors
         }
     });

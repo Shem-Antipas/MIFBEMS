@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { AxiosError } from "axios";
+import { Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useLicenses } from "@/hooks/useLicenses";
 import { useFarmers } from "@/hooks/useFarmers";
@@ -39,18 +40,24 @@ type LicenseForm = {
 
 const licenseTypeOptions: Array<{ value: License["type"]; label: string }> = [
   { value: "FISH_DEPOT", label: "Fish Depot" },
-  { value: "FISH_TRADER", label: "Fish Traders License" },
+  { value: "FISHERMAN", label: "Fisherman's License" },
+  { value: "FISH_TRADER", label: "Fish Trader License" },
   { value: "BOAT_OWNER", label: "Boat Owner License" },
-  { value: "FISHERMAN", label: "Fishermen License" },
   { value: "FISH_MOVEMENT_PERMIT", label: "Fish Movement Permit" },
-  { value: "BOAT_LICENSE", label: "Boat Licensing" },
+  { value: "BOAT_LICENSE", label: "Boat License" },
   { value: "NEW_BOARD_REGISTRATION", label: "New Board Registration License" },
   { value: "ICE_PLANT", label: "Ice Plant License" },
-  { value: "BOAT", label: "Boat Licensing (Legacy)" }
+  { value: "BOAT", label: "Boat Licensing" }
 ];
 
 const formatLicenseType = (type: License["type"]): string =>
-  licenseTypeOptions.find((option) => option.value === type)?.label ?? type;
+  type === "FISHERMAN"
+    ? "Fisherman's License"
+    : type
+        .toLowerCase()
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
 
 const FormField = ({ label, children }: { label: string; children: ReactNode }) => (
   <label className="block space-y-1">
@@ -78,11 +85,32 @@ const licenseExportColumns = [
   { header: "Status", value: "status" }
 ] satisfies Array<ExcelColumn<License>>;
 
+type ImportErrorRow = {
+  row: string;
+  issue: string;
+};
+
+const importErrorColumns = [
+  { header: "Spreadsheet Row", value: "row" },
+  { header: "Issue", value: "issue" }
+] satisfies Array<ExcelColumn<ImportErrorRow>>;
+
+const toImportErrorRows = (errors: string[]): ImportErrorRow[] =>
+  errors.map((item) => {
+    const match = item.match(/^Row\s+([^:]+):\s*(.*)$/i);
+    return {
+      row: match?.[1] ?? "-",
+      issue: match?.[2] ?? item
+    };
+  });
+
 const LicensesPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [editingLicenseId, setEditingLicenseId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"ALL" | License["status"]>("ALL");
   const [subCountyFilter, setSubCountyFilter] = useState("ALL");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role;
@@ -91,6 +119,7 @@ const LicensesPage = () => {
   const canRecordLicense = userRole === "FISHERIES_OFFICER";
   const canApproveLicense = userRole === "DIRECTOR" || userRole === "ADMIN";
   const canDeleteLicense = userRole === "DIRECTOR" || userRole === "ADMIN";
+  const canImportLicenses = userRole === "DIRECTOR" || userRole === "ADMIN" || userRole === "FISHERIES_OFFICER";
   const enforcedSubCounty =
     userRole === "FISHERIES_OFFICER" && user?.subCounty && MIGORI_SUBCOUNTIES.includes(user.subCounty as (typeof MIGORI_SUBCOUNTIES)[number])
       ? user.subCounty
@@ -151,6 +180,24 @@ const LicensesPage = () => {
       void queryClient.invalidateQueries({ queryKey: ["reports", "summary"] });
     }
   });
+  const importLicenses = useMutation({
+    mutationFn: licensesApi.importSpreadsheet,
+    onSuccess: (result) => {
+      setImportFile(null);
+      setImportErrors(result.errors);
+      void queryClient.invalidateQueries({ queryKey: ["licenses"] });
+      void queryClient.invalidateQueries({ queryKey: ["reports", "summary"] });
+
+      toast.success(
+        `Import complete: ${result.createdCount} created, ${result.updatedCount} updated, ${result.skippedCount} skipped.`
+      );
+
+      if (result.errors.length > 0) {
+        toast.warning(`${result.errors.length} row${result.errors.length === 1 ? "" : "s"} need review.`);
+      }
+    }
+  });
+  const importErrorRows = useMemo(() => toImportErrorRows(importErrors), [importErrors]);
 
   const filteredLicenses = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -369,7 +416,10 @@ const LicensesPage = () => {
                 </select>
               </FormField>
               <FormField label="License Type">
-                <select className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...register("type")}>
+                <select
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register("type")}
+                >
                   {licenseTypeOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -427,19 +477,117 @@ const LicensesPage = () => {
         </Card>
       ) : null}
 
+      {canImportLicenses ? (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div className="space-y-1">
+                <h2 className="text-sm font-semibold">Bulk Import Licenses</h2>
+                <p className="text-sm text-muted-foreground">
+                  Upload Excel or CSV files with Unique Number, Name, ID, Phone, Email, Sub-County, Ward, Beach Name,
+                  Market, Receipt No, Amount Licensed, Licensed By, Type, Issued Date, Expiry Date, and Status.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <label className="flex min-w-64 cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <Upload className="h-4 w-4 text-muted-foreground" />
+                  <span className="truncate">{importFile ? importFile.name : "Choose .xlsx, .xls, or .csv file"}</span>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="sr-only"
+                    onChange={(event) => {
+                      setImportErrors([]);
+                      setImportFile(event.target.files?.[0] ?? null);
+                    }}
+                  />
+                </label>
+                <Button
+                  type="button"
+                  disabled={!importFile || importLicenses.isPending}
+                  onClick={async () => {
+                    if (!importFile) {
+                      toast.error("Please choose an Excel or CSV file first.");
+                      return;
+                    }
+
+                    try {
+                      await importLicenses.mutateAsync(importFile);
+                    } catch (mutationError) {
+                      const message =
+                        (mutationError as AxiosError<{ error?: string }>).response?.data?.error ??
+                        "Failed to import licenses.";
+                      toast.error(message);
+                    }
+                  }}
+                >
+                  {importLicenses.isPending ? "Importing..." : "Import Licenses"}
+                </Button>
+              </div>
+            </div>
+
+            {importErrors.length > 0 ? (
+              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium">Rows that need attention</p>
+                  <ExportButton
+                    filename="license-import-row-issues"
+                    sheetName="Import Issues"
+                    columns={importErrorColumns}
+                    rows={importErrorRows}
+                    label="Download Issues"
+                  />
+                </div>
+                <ul className="mt-2 max-h-32 list-disc space-y-1 overflow-y-auto pl-5">
+                  {importErrors.slice(0, 12).map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+                {importErrors.length > 12 ? (
+                  <p className="mt-2 text-xs">Showing first 12 of {importErrors.length} row issues.</p>
+                ) : null}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
       <DataTable
-        headers={["Unique No", "Name", "ID", "Phone", "Sub-County", "Ward", "Type", "Receipt", "Amount", "Licensed By", "Status", "Actions"]}
+        headers={[
+          "Unique Number",
+          "Name",
+          "ID",
+          "Phone",
+          "Email",
+          "Sub-County",
+          "Ward",
+          "Beach Name",
+          "Market",
+          "Receipt No",
+          "Amount Licensed",
+          "Licensed By",
+          "Type",
+          "Issued Date",
+          "Expiry Date",
+          "Status",
+          "Actions"
+        ]}
         rows={filteredLicenses.map((license) => [
           license.licenseNo,
           license.holderName ?? license.farmer?.name ?? "-",
           license.holderIdNumber ?? license.farmer?.idNumber ?? "-",
           license.holderPhoneNumber ?? license.farmer?.phoneNumber ?? "-",
+          license.holderEmail ?? license.farmer?.email ?? "-",
           license.subCounty ?? license.farmer?.subCounty ?? "-",
           license.ward ?? license.farmer?.ward ?? "-",
-          formatLicenseType(license.type),
+          license.beachName ?? "-",
+          license.market ?? "-",
           license.receiptNo ?? "-",
-          `KES ${Number(license.amountLicensed ?? 0).toLocaleString()}`,
+          Number(license.amountLicensed ?? 0).toLocaleString(),
           license.licensedByName ?? "-",
+          formatLicenseType(license.type),
+          new Date(license.issuedDate).toLocaleDateString(),
+          new Date(license.expiryDate).toLocaleDateString(),
           <StatusBadge key={license.id} status={license.status} />,
           canApproveLicense || canRecordLicense || canDeleteLicense ? (
             <div className="flex flex-wrap gap-2">

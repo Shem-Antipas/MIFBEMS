@@ -107,7 +107,7 @@ const createCageProductionSchema = cageProductionFieldsSchema.superRefine((value
             message: "Selected ward does not belong to the selected sub-county"
         });
     }
-    const numberOfCages = value.numberOfCages ?? 0;
+    const numberOfCages = value.numberOfCages ?? (value.activeCages ?? 0) + (value.inactiveCages ?? 0);
     const activeCages = value.activeCages ?? 0;
     const inactiveCages = value.inactiveCages ?? 0;
     if (activeCages + inactiveCages > numberOfCages) {
@@ -182,13 +182,34 @@ router.post("/cage-production", validate({ body: createCageProductionSchema }), 
     if (req.user.role === "FISHERIES_OFFICER" && payload.subCounty !== req.user.subCounty) {
         throw new HttpError(403, "You can only create cage production entries in your assigned sub-county");
     }
+    const numberOfCages = payload.numberOfCages ?? (payload.activeCages ?? 0) + (payload.inactiveCages ?? 0);
     const record = await prisma.cageProductionRecord.create({
         data: {
-            ...payload,
             farmerUniqueId: payload.farmerUniqueId ?? payload.cageIdentifier,
-            numberOfCages: payload.numberOfCages ?? 0,
+            farmerName: payload.farmerName,
+            phoneNumber: payload.phoneNumber,
+            idNumber: payload.idNumber,
+            bmuLocation: payload.bmuLocation,
+            cageIdentifier: payload.cageIdentifier,
+            fishSpecies: payload.fishSpecies,
+            subCounty: payload.subCounty,
+            ward: payload.ward,
+            numberOfCages,
             activeCages: payload.activeCages ?? 0,
             inactiveCages: payload.inactiveCages ?? 0,
+            fingerlingsStocked: payload.fingerlingsStocked,
+            stockingDate: payload.stockingDate,
+            feedTypes: payload.feedTypes,
+            feedQuantityKg: payload.feedQuantityKg,
+            averageFishWeightKg: payload.averageFishWeightKg,
+            mortalityPieces: payload.mortalityPieces,
+            quantityHarvestedKg: payload.quantityHarvestedKg,
+            numberHarvestedPieces: payload.numberHarvestedPieces,
+            harvestDate: payload.harvestDate,
+            extensionOfficerName: payload.extensionOfficerName,
+            remarks: payload.remarks,
+            month: payload.month,
+            year: payload.year,
             recordedById: req.user.id
         }
     });
@@ -271,12 +292,30 @@ router.post("/", validate({ body: createCaptureRecordSchema }), authorize(["FISH
     const fishingDate = payload.fishingDate ?? new Date(payload.year, payload.month - 1, 1);
     const record = await prisma.captureFisheriesRecord.create({
         data: {
-            ...payload,
-            fishingDate,
-            value: payload.value ?? 0,
+            extensionOfficerName: payload.extensionOfficerName,
             extensionOfficerPhone: payload.extensionOfficerPhone ?? "",
+            fisherName: payload.fisherName,
+            farmerNumber: payload.farmerNumber,
+            idNumber: payload.idNumber,
+            phoneNumber: payload.phoneNumber,
+            gender: payload.gender,
+            ageBracket: payload.ageBracket,
+            topics: payload.topics,
+            bmuName: payload.bmuName,
+            landingSite: payload.landingSite,
             activeCages: payload.activeCages ?? 0,
             inactiveCages: payload.inactiveCages ?? 0,
+            ward: payload.ward,
+            latitude: payload.latitude,
+            longitude: payload.longitude,
+            species: payload.species,
+            catchKg: payload.catchKg,
+            value: payload.value ?? 0,
+            effortHours: payload.effortHours,
+            fishingDate,
+            month: payload.month,
+            year: payload.year,
+            subCounty: payload.subCounty,
             approvalStatus: CaptureApprovalStatus.PENDING,
             approvedById: null,
             approvedAt: null,

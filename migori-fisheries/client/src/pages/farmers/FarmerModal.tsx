@@ -178,7 +178,8 @@ const FarmerModal = ({
       numberOfPonds: 0,
       activePonds: 0,
       inactivePonds: 0,
-      issueLicense: false
+      issueLicense: false,
+      licenseType: "FISHERMAN"
     }
   });
 
@@ -444,13 +445,14 @@ const FarmerModal = ({
                   <select className="w-full rounded-lg border px-3 py-2 text-sm" {...register("licenseType")}>
                     <option value="">Select type</option>
                     <option value="FISH_DEPOT">Fish Depot</option>
-                    <option value="FISH_TRADER">Fish Traders License</option>
+                    <option value="FISHERMAN">Fisherman's License</option>
+                    <option value="FISH_TRADER">Fish Trader License</option>
                     <option value="BOAT_OWNER">Boat Owner License</option>
-                    <option value="FISHERMAN">Fishermen License</option>
                     <option value="FISH_MOVEMENT_PERMIT">Fish Movement Permit</option>
-                    <option value="BOAT_LICENSE">Boat Licensing</option>
+                    <option value="BOAT_LICENSE">Boat License</option>
                     <option value="NEW_BOARD_REGISTRATION">New Board Registration License</option>
                     <option value="ICE_PLANT">Ice Plant License</option>
+                    <option value="BOAT">Boat Licensing</option>
                   </select>
                   {errors.licenseType ? <p className="text-xs text-red-600">{errors.licenseType.message}</p> : null}
                 </div>

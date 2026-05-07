@@ -117,9 +117,14 @@ const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     error instanceof Prisma.PrismaClientInitializationError ||
     (error instanceof Prisma.PrismaClientKnownRequestError &&
       ["P1000", "P1001", "P1002", "P1008", "P1017"].includes(error.code));
+  const isPrismaSchemaError =
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    ["P2021", "P2022"].includes(error.code);
 
   const statusCode = isPrismaConnectivityError
     ? 503
+    : isPrismaSchemaError
+      ? 503
     : error instanceof HttpError
       ? error.statusCode
       : res.statusCode >= 400 && res.statusCode < 600
@@ -133,6 +138,10 @@ const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
 
   const message = isPrismaConnectivityError
     ? databaseMessage
+    : isPrismaSchemaError
+      ? env.NODE_ENV === "development"
+        ? "Database schema is out of date. Run Prisma migrations, then restart the server."
+        : "Service temporarily unavailable."
     : statusCode === 500
       ? "Internal server error"
       : error.message;

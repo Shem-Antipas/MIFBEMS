@@ -39,6 +39,25 @@ const farmerExportColumns = [
   { header: "Created At", value: (farmer: Farmer) => new Date(farmer.createdAt) }
 ] satisfies Array<ExcelColumn<Farmer>>;
 
+type ImportErrorRow = {
+  row: string;
+  issue: string;
+};
+
+const importErrorColumns = [
+  { header: "Spreadsheet Row", value: "row" },
+  { header: "Issue", value: "issue" }
+] satisfies Array<ExcelColumn<ImportErrorRow>>;
+
+const toImportErrorRows = (errors: string[]): ImportErrorRow[] =>
+  errors.map((item) => {
+    const match = item.match(/^Row\s+([^:]+):\s*(.*)$/i);
+    return {
+      row: match?.[1] ?? "-",
+      issue: match?.[2] ?? item
+    };
+  });
+
 const FarmersPage = () => {
   const [open, setOpen] = useState(false);
   const [editingFarmer, setEditingFarmer] = useState<Farmer | null>(null);
@@ -106,6 +125,7 @@ const FarmersPage = () => {
     (error as AxiosError<{ error?: string }> | null)?.response?.data?.error ??
     (error as Error | null)?.message ??
     "Failed to load farmers.";
+  const importErrorRows = useMemo(() => toImportErrorRows(importErrors), [importErrors]);
 
   const filteredFarmers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -248,7 +268,16 @@ const FarmersPage = () => {
 
           {importErrors.length > 0 ? (
             <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              <p className="font-medium">Rows that need attention</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium">Rows that need attention</p>
+                <ExportButton
+                  filename="farmer-import-row-issues"
+                  sheetName="Import Issues"
+                  columns={importErrorColumns}
+                  rows={importErrorRows}
+                  label="Download Issues"
+                />
+              </div>
               <ul className="mt-2 max-h-32 list-disc space-y-1 overflow-y-auto pl-5">
                 {importErrors.slice(0, 12).map((item) => (
                   <li key={item}>{item}</li>

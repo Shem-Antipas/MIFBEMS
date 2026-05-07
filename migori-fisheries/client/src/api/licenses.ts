@@ -43,6 +43,13 @@ export type UpdateLicensePayload = Partial<
   >
 >;
 
+export interface ImportLicensesResult {
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  errors: string[];
+}
+
 export const licensesApi = {
   async list(): Promise<License[]> {
     const { data } = await apiClient.get<{ data: License[] }>("/licenses");
@@ -58,5 +65,14 @@ export const licensesApi = {
   },
   async remove(id: string): Promise<void> {
     await apiClient.delete(`/licenses/${id}`);
+  },
+  async importSpreadsheet(file: File): Promise<ImportLicensesResult> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const { data } = await apiClient.post<{ data: ImportLicensesResult }>("/licenses/import", formData, {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
+    return data.data;
   }
 };

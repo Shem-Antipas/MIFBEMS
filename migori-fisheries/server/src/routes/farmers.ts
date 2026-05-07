@@ -6,7 +6,7 @@ import { Router } from "express";
 import * as XLSX from "xlsx";
 import { z } from "zod";
 import { asyncHandler, HttpError } from "../lib/http.js";
-import { MIGORI_SUBCOUNTIES, WARDS_BY_SUBCOUNTY, isValidWardForSubCounty } from "../lib/locationData.js";
+import { MIGORI_SUBCOUNTIES, isValidWardForSubCounty, toCanonicalWardForSubCounty } from "../lib/locationData.js";
 import { prisma } from "../lib/prisma.js";
 import { authenticate } from "../middleware/authenticate.js";
 import { authorize } from "../middleware/authorize.js";
@@ -90,6 +90,19 @@ const normalizeRow = (row: SpreadsheetRow): Record<string, PrimitiveCell> => {
   return normalized;
 };
 
+const isBlankSpreadsheetRow = (row: SpreadsheetRow): boolean =>
+  Object.values(row).every((value) => {
+    if (value === null || value === undefined) {
+      return true;
+    }
+
+    if (typeof value === "string") {
+      return value.replace(/\u00a0/g, " ").trim() === "";
+    }
+
+    return false;
+  });
+
 const pickValue = (row: Record<string, PrimitiveCell>, keys: string[]): PrimitiveCell | undefined => {
   for (const key of keys) {
     const value = row[key];
@@ -125,7 +138,7 @@ const parseText = (value: unknown): string | undefined => {
     return undefined;
   }
 
-  const trimmed = value.trim();
+  const trimmed = value.replace(/\u00a0/g, " ").trim();
   return trimmed ? trimmed : undefined;
 };
 
@@ -206,9 +219,8 @@ const toCanonicalSubCounty = (value: string): string => {
 };
 
 const toCanonicalWard = (subCounty: string, value: string): string => {
-  const normalized = value.trim().toLowerCase();
-  const wards = WARDS_BY_SUBCOUNTY[subCounty as keyof typeof WARDS_BY_SUBCOUNTY] ?? [];
-  return wards.find((ward) => ward.toLowerCase() === normalized) ?? toTitleCase(value);
+  const canonicalWard = toCanonicalWardForSubCounty(subCounty, value);
+  return canonicalWard === value.trim() ? toTitleCase(value) : canonicalWard;
 };
 
 const parseFarmType = (value: unknown): FarmType | undefined => {
@@ -226,6 +238,10 @@ const parseFarmType = (value: unknown): FarmType | undefined => {
     ponds: "POND",
     fishpond: "POND",
     fishponds: "POND",
+    aquaculturepond: "POND",
+    aquacultureponds: "POND",
+    productionpond: "POND",
+    productionponds: "POND",
     tank: "TANK",
     tanks: "TANK"
   };
@@ -293,6 +309,27 @@ const parseSpecies = (value: unknown): string[] => {
 };
 
 const formatImportError = (rowNumber: number, message: string): string => `Row ${rowNumber}: ${message}`;
+
+const IMPORT_CREATE_BATCH_SIZE = 100;
+const IMPORT_UPDATE_BATCH_SIZE = 25;
+
+type ParsedFarmerImportRow = {
+  rowNumber: number;
+  farmerCode?: string;
+  idNumber?: string;
+  createData: Prisma.FarmerCreateManyInput;
+  updateData: Prisma.FarmerUncheckedUpdateInput;
+};
+
+const chunkItems = <T>(items: T[], size: number): T[][] => {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+};
 
 const createFarmerSchema = z.object({
   name: z.string().min(2),
@@ -433,11 +470,18 @@ router.post(
     }
 
     const rowErrors: string[] = [];
-    let createdCount = 0;
-    let updatedCount = 0;
+    const parsedRows: ParsedFarmerImportRow[] = [];
+    const seenFarmerCodes = new Set<string>();
+    const seenIdNumbers = new Set<string>();
+    let processedCount = 0;
 
     for (const [index, rawRow] of rows.entries()) {
       const rowNumber = index + 2;
+      if (isBlankSpreadsheetRow(rawRow)) {
+        continue;
+      }
+
+      processedCount += 1;
       const row = normalizeRow(rawRow);
 
       const farmerCode = parseText(pickValue(row, ["farmerid", "farmerno", "farmernumber", "farmercode"]));
@@ -452,7 +496,7 @@ router.post(
       const farmType = parseFarmType(pickValue(row, ["productionunit", "farmtype", "unittype"]));
       const species = parseSpecies(pickValue(row, ["species", "fishspecies"]));
       const productionKg = parseNumber(pickValue(row, ["productionkg", "productionkgs", "production"])) ?? 0;
-      const numberOfPonds = parseInteger(
+      let numberOfPonds = parseInteger(
         pickValue(row, ["numberofproductionunits", "productionunits", "numberofponds", "numberofunits", "units"])
       ) ?? 0;
       const activePonds = parseInteger(pickValue(row, ["numberactive", "active", "activeponds", "activeunits"])) ?? 0;
@@ -473,6 +517,16 @@ router.post(
         continue;
       }
 
+      if (farmerCode && seenFarmerCodes.has(farmerCode)) {
+        rowErrors.push(formatImportError(rowNumber, `duplicate Farmer ID "${farmerCode}" in this upload.`));
+        continue;
+      }
+
+      if (idNumber && seenIdNumbers.has(idNumber)) {
+        rowErrors.push(formatImportError(rowNumber, `duplicate ID No. "${idNumber}" in this upload.`));
+        continue;
+      }
+
       const subCounty = toCanonicalSubCounty(subCountyRaw);
       if (!MIGORI_SUBCOUNTIES.includes(subCounty as (typeof MIGORI_SUBCOUNTIES)[number])) {
         rowErrors.push(formatImportError(rowNumber, `invalid sub-county "${subCounty}".`));
@@ -490,6 +544,10 @@ router.post(
         continue;
       }
 
+      if (numberOfPonds === 0 && activePonds + inactivePonds > 0) {
+        numberOfPonds = activePonds + inactivePonds;
+      }
+
       if (activePonds + inactivePonds > numberOfPonds) {
         rowErrors.push(formatImportError(rowNumber, "Number Active and Number Inactive cannot exceed total Production Units."));
         continue;
@@ -505,87 +563,159 @@ router.post(
         continue;
       }
 
-      const duplicateChecks: Prisma.FarmerWhereInput[] = [];
-      if (farmerCode) duplicateChecks.push({ farmerCode });
-      if (idNumber) duplicateChecks.push({ idNumber });
-      if (phoneNumber) duplicateChecks.push({ phoneNumber });
-      if (email) duplicateChecks.push({ email });
+      if (farmerCode) seenFarmerCodes.add(farmerCode);
+      if (idNumber) seenIdNumbers.add(idNumber);
 
-      try {
-        const existingFarmer =
-          duplicateChecks.length > 0
-            ? await prisma.farmer.findFirst({
-                where: { OR: duplicateChecks }
-              })
-            : null;
+      const createData: Prisma.FarmerCreateManyInput = {
+        ...(farmerCode ? { farmerCode } : {}),
+        name,
+        idNumber,
+        phoneNumber,
+        email,
+        gender,
+        ageBracket,
+        subCounty,
+        ward,
+        farmType,
+        species,
+        status,
+        productionKg,
+        numberOfPonds,
+        activePonds,
+        inactivePonds,
+        latitude,
+        longitude,
+        ...(createdAt ? { createdAt } : {}),
+        registeredById: req.user.id
+      };
 
-        if (existingFarmer) {
-          await prisma.farmer.update({
-            where: { id: existingFarmer.id },
-            data: {
-              name,
-              idNumber,
-              phoneNumber,
-              email,
-              gender,
-              ageBracket,
-              subCounty,
-              ward,
-              farmType,
-              species,
-              status,
-              productionKg,
-              numberOfPonds,
-              activePonds,
-              inactivePonds,
-              latitude,
-              longitude
-            }
-          });
-          updatedCount += 1;
-          continue;
+      parsedRows.push({
+        rowNumber,
+        farmerCode,
+        idNumber,
+        createData,
+        updateData: {
+          name,
+          idNumber,
+          phoneNumber,
+          email,
+          gender,
+          ageBracket,
+          subCounty,
+          ward,
+          farmType,
+          species,
+          status,
+          productionKg,
+          numberOfPonds,
+          activePonds,
+          inactivePonds,
+          latitude,
+          longitude
         }
+      });
+    }
 
-        await prisma.farmer.create({
-          data: {
-            ...(farmerCode ? { farmerCode } : {}),
-            name,
-            idNumber,
-            phoneNumber,
-            email,
-            gender,
-            ageBracket,
-            subCounty,
-            ward,
-            farmType,
-            species,
-            status,
-            productionKg,
-            numberOfPonds,
-            activePonds,
-            inactivePonds,
-            latitude,
-            longitude,
-            ...(createdAt ? { createdAt } : {}),
-            registeredById: req.user.id
-          }
-        });
-        createdCount += 1;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to import row";
-        rowErrors.push(formatImportError(rowNumber, message));
+    const farmerCodes = parsedRows
+      .map((row) => row.farmerCode)
+      .filter((value): value is string => Boolean(value));
+    const idNumbers = parsedRows
+      .map((row) => row.idNumber)
+      .filter((value): value is string => Boolean(value));
+
+    const existingFarmers =
+      farmerCodes.length > 0 || idNumbers.length > 0
+        ? await prisma.farmer.findMany({
+            where: {
+              OR: [
+                ...(farmerCodes.length > 0 ? [{ farmerCode: { in: farmerCodes } }] : []),
+                ...(idNumbers.length > 0 ? [{ idNumber: { in: idNumbers } }] : [])
+              ]
+            },
+            select: { id: true, farmerCode: true, idNumber: true }
+          })
+        : [];
+
+    const existingByFarmerCode = new Map(
+      existingFarmers
+        .filter((farmer) => farmer.farmerCode)
+        .map((farmer) => [farmer.farmerCode, farmer])
+    );
+    const existingByIdNumber = new Map(
+      existingFarmers
+        .filter((farmer) => farmer.idNumber)
+        .map((farmer) => [farmer.idNumber as string, farmer])
+    );
+    const createRows: ParsedFarmerImportRow[] = [];
+    const updateRows: Array<ParsedFarmerImportRow & { existingId: string }> = [];
+
+    for (const row of parsedRows) {
+      const existingFarmer =
+        (row.farmerCode ? existingByFarmerCode.get(row.farmerCode) : undefined) ??
+        (row.idNumber ? existingByIdNumber.get(row.idNumber) : undefined);
+
+      if (existingFarmer) {
+        updateRows.push({ ...row, existingId: existingFarmer.id });
+      } else {
+        createRows.push(row);
       }
     }
 
-    if (createdCount + updatedCount === 0) {
-      throw new HttpError(400, rowErrors[0] ?? "No valid rows were found in the import file.");
+    let createdCount = 0;
+    let updatedCount = 0;
+
+    for (const chunk of chunkItems(createRows, IMPORT_CREATE_BATCH_SIZE)) {
+      try {
+        const result = await prisma.farmer.createMany({
+          data: chunk.map((row) => row.createData),
+          skipDuplicates: true
+        });
+        createdCount += result.count;
+      } catch {
+        for (const row of chunk) {
+          try {
+            await prisma.farmer.create({ data: row.createData });
+            createdCount += 1;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to import row";
+            rowErrors.push(formatImportError(row.rowNumber, message));
+          }
+        }
+      }
     }
 
-    res.status(201).json({
+    for (const chunk of chunkItems(updateRows, IMPORT_UPDATE_BATCH_SIZE)) {
+      try {
+        await prisma.$transaction(
+          chunk.map((row) =>
+            prisma.farmer.update({
+              where: { id: row.existingId },
+              data: row.updateData
+            })
+          )
+        );
+        updatedCount += chunk.length;
+      } catch {
+        for (const row of chunk) {
+          try {
+            await prisma.farmer.update({
+              where: { id: row.existingId },
+              data: row.updateData
+            });
+            updatedCount += 1;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to import row";
+            rowErrors.push(formatImportError(row.rowNumber, message));
+          }
+        }
+      }
+    }
+
+    res.status(createdCount + updatedCount > 0 ? 201 : 200).json({
       data: {
         createdCount,
         updatedCount,
-        skippedCount: rows.length - createdCount - updatedCount,
+        skippedCount: processedCount - createdCount - updatedCount,
         errors: rowErrors
       }
     });

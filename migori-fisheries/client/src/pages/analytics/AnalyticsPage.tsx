@@ -72,6 +72,18 @@ const farmTypeLabels: Record<string, string> = {
   CAPTURE: "Capture Fisheries"
 };
 
+const farmerGenderLabels: Record<string, string> = {
+  MALE: "Male",
+  FEMALE: "Female",
+  UNSPECIFIED: "Unspecified"
+};
+
+const farmerAgeBracketLabels: Record<string, string> = {
+  YOUTH: "Youth - below 35 years",
+  ADULT: "Adult - above 35 years",
+  UNSPECIFIED: "Unspecified"
+};
+
 const chartColors = ["#0f766e", "#2563eb", "#7c3aed", "#ea580c", "#0891b2", "#16a34a", "#ca8a04", "#be123c"];
 const statusColors: Record<string, string> = {
   VALID: "#16a34a",
@@ -287,6 +299,28 @@ const AnalyticsPage = () => {
     return Object.entries(totals).map(([name, value]) => ({ name, value }));
   }, [filteredFarmers]);
 
+  const farmerGenderRows = useMemo<NameValueRow[]>(() => {
+    const totals = filteredFarmers.reduce<Record<string, number>>((acc, farmer) => {
+      const key = farmer.gender ?? "UNSPECIFIED";
+      const label = farmerGenderLabels[key] ?? key;
+      acc[label] = (acc[label] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(totals).map(([name, value]) => ({ name, value }));
+  }, [filteredFarmers]);
+
+  const farmerAgeBracketRows = useMemo<NameValueRow[]>(() => {
+    const totals = filteredFarmers.reduce<Record<string, number>>((acc, farmer) => {
+      const key = farmer.ageBracket ?? "UNSPECIFIED";
+      const label = farmerAgeBracketLabels[key] ?? key;
+      acc[label] = (acc[label] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(totals).map(([name, value]) => ({ name, value }));
+  }, [filteredFarmers]);
+
   const wardRows = useMemo<WardAnalyticsRow[]>(() => {
     if (!isSubCountyDrilldown) return [];
 
@@ -378,6 +412,16 @@ const AnalyticsPage = () => {
         metric: row.name,
         value: row.value
       })),
+      ...farmerGenderRows.map((row) => ({
+        section: "Farmer Gender Distribution",
+        metric: row.name,
+        value: row.value
+      })),
+      ...farmerAgeBracketRows.map((row) => ({
+        section: "Farmer Age Distribution",
+        metric: row.name,
+        value: row.value
+      })),
       ...wardRows.map((row) => ({
         section: "Ward Drill Down",
         metric: row.ward,
@@ -389,7 +433,18 @@ const AnalyticsPage = () => {
         value: row.value
       }))
     ];
-  }, [extensionSummaryRows, farmTypeRows, farmerStatusRows, licenseStatusRows, projectStatusRows, speciesRows, visibleSubCountyRows, wardRows]);
+  }, [
+    extensionSummaryRows,
+    farmTypeRows,
+    farmerAgeBracketRows,
+    farmerGenderRows,
+    farmerStatusRows,
+    licenseStatusRows,
+    projectStatusRows,
+    speciesRows,
+    visibleSubCountyRows,
+    wardRows
+  ]);
 
   return (
     <section className="space-y-6">
@@ -437,6 +492,68 @@ const AnalyticsPage = () => {
         <StatCard label="Operating Units" value={formatNumber(operatingUnits)} helper="Active ponds plus non-pond farms" />
         <StatCard label="Average Production/Farmer" value={formatKg(averageProductionPerFarmer)} helper={`${formatNumber(validLicenseCount)} valid licenses`} />
         <StatCard label="Extension Entries" value={formatNumber(filteredExtensionEntries.length)} helper="Services captured" />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ChartCard title="Farmers by Gender">
+          {farmerGenderRows.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={farmerGenderRows}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={56}
+                  outerRadius={88}
+                  paddingAngle={2}
+                  label={(entry) =>
+                    formatDisplayValue(
+                      Number(entry?.value ?? 0),
+                      farmerGenderRows.reduce((sum, row) => sum + row.value, 0),
+                      valueDisplayMode
+                    )
+                  }
+                >
+                  {farmerGenderRows.map((entry, index) => (
+                    <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="grid h-full place-items-center text-sm text-muted-foreground">No gender data available.</div>
+          )}
+        </ChartCard>
+
+        <ChartCard title="Farmers by Age Bracket">
+          {farmerAgeBracketRows.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={farmerAgeBracketRows} layout="vertical" margin={{ left: 56, right: 24 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" allowDecimals={false} fontSize={11} />
+                <YAxis type="category" dataKey="name" fontSize={11} width={136} />
+                <Tooltip />
+                <Bar dataKey="value" name="Farmers" radius={[0, 6, 6, 0]} fill="#0891b2">
+                  <LabelList
+                    dataKey="value"
+                    position="right"
+                    formatter={(value) =>
+                      formatDisplayValue(
+                        Number(value),
+                        farmerAgeBracketRows.reduce((sum, row) => sum + row.value, 0),
+                        valueDisplayMode
+                      )
+                    }
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="grid h-full place-items-center text-sm text-muted-foreground">No age bracket data available.</div>
+          )}
+        </ChartCard>
       </div>
 
       <Card>
