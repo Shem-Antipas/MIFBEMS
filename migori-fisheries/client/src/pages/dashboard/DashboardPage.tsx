@@ -8,7 +8,6 @@ import { projectsApi } from "@/api/projects";
 import { useAuthStore } from "@/store/authStore";
 import { formatCurrency, getLicenseRevenue } from "@/lib/licenseRevenue";
 import StatCard from "@/components/shared/StatCard";
-import DataTable from "@/components/shared/DataTable";
 import MigoriMap from "@/components/map/MigoriMap";
 
 const featureCards = [
@@ -107,7 +106,25 @@ const DashboardPage = () => {
   const fallbackTotalProductionKg = fallbackFarmProductionKg + fallbackCaptureProductionKg;
   const fallbackTotalLicenseRevenue = licenses.reduce((total, item) => total + getLicenseRevenue(item), 0);
   const fallbackCompletedProjects = projects.filter((item) => item.status === "COMPLETED").length;
+  const fallbackOngoingProjects = projects.filter((item) => item.status === "ONGOING" || item.status === "IN_PROGRESS").length;
   const fallbackProjectCost = projects.reduce((total, item) => total + item.budget, 0);
+  const projectComparisonTotal = Math.max(fallbackCompletedProjects + fallbackOngoingProjects, 1);
+  const projectComparisonRows = [
+    {
+      label: "Ongoing Projects",
+      value: fallbackOngoingProjects,
+      amount: projects
+        .filter((item) => item.status === "ONGOING" || item.status === "IN_PROGRESS")
+        .reduce((total, item) => total + item.budget, 0),
+      barClassName: "bg-amber-500"
+    },
+    {
+      label: "Completed Projects",
+      value: fallbackCompletedProjects,
+      amount: projects.filter((item) => item.status === "COMPLETED").reduce((total, item) => total + item.budget, 0),
+      barClassName: "bg-emerald-600"
+    }
+  ];
 
   return (
     <section className="space-y-6">
@@ -125,6 +142,7 @@ const DashboardPage = () => {
         />
         <StatCard label="License Revenue" value={formatCurrency(fallbackTotalLicenseRevenue)} />
         <StatCard label="Completed Projects" value={fallbackCompletedProjects} />
+        <StatCard label="Ongoing Projects" value={fallbackOngoingProjects} />
         <StatCard label="Project Cost (KES)" value={fallbackProjectCost.toLocaleString()} />
       </div>
 
@@ -167,17 +185,43 @@ const DashboardPage = () => {
         />
       </div>
 
-      <DataTable
-        headers={["Farmer ID", "Farmer", "Sub-County", "Farm Type", "Production (Kg)"]}
-        rows={farmers.slice(0, 8).map((farmer) => [
-          farmer.farmerCode,
-          farmer.name,
-          farmer.subCounty,
-          farmer.farmType,
-          farmer.productionKg.toLocaleString()
-        ])}
-        emptyLabel="No farmer records available."
-      />
+      <div className="rounded-xl border bg-card p-[18px]">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Ongoing vs Completed Projects</h2>
+            <p className="text-sm text-muted-foreground">
+              Project delivery status across current blue economy investments.
+            </p>
+          </div>
+          <div className="rounded-lg border bg-secondary/30 px-3 py-2 text-right">
+            <p className="text-xs text-muted-foreground">Tracked Projects</p>
+            <p className="text-lg font-semibold">{fallbackCompletedProjects + fallbackOngoingProjects}</p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          {projectComparisonRows.map((row) => {
+            const percentage = (row.value / projectComparisonTotal) * 100;
+            return (
+              <div key={row.label} className="rounded-lg border bg-secondary/20 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">{row.label}</p>
+                    <p className="text-xs text-muted-foreground">{formatCurrency(row.amount)} project value</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-semibold">{row.value}</p>
+                    <p className="text-xs text-muted-foreground">{percentage.toFixed(1)}%</p>
+                  </div>
+                </div>
+                <div className="mt-4 h-3 overflow-hidden rounded-full bg-muted">
+                  <div className={`h-full rounded-full ${row.barClassName}`} style={{ width: `${percentage}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </section>
   );
 };
