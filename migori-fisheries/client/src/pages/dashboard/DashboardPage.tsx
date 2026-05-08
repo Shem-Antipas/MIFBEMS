@@ -133,7 +133,7 @@ const DashboardPage = () => {
         <p className="text-sm text-muted-foreground">Real-time view of fisheries operations and blue economy indicators.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Total Farmers" value={summaryData?.summary.totalFarmers ?? fallbackTotalFarmers} />
         <StatCard label="Active Licenses" value={summaryData?.summary.activeLicenses ?? fallbackActiveLicenses} />
         <StatCard
@@ -141,8 +141,6 @@ const DashboardPage = () => {
           value={(summaryData?.summary.totalProductionKg ?? fallbackTotalProductionKg).toLocaleString()}
         />
         <StatCard label="License Revenue" value={formatCurrency(fallbackTotalLicenseRevenue)} />
-        <StatCard label="Completed Projects" value={fallbackCompletedProjects} />
-        <StatCard label="Ongoing Projects" value={fallbackOngoingProjects} />
         <StatCard label="Project Cost (KES)" value={fallbackProjectCost.toLocaleString()} />
       </div>
 
